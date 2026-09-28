@@ -48,3 +48,18 @@ export async function hideCategory(categoryId: string) {
   revalidatePath('/dashboard');
   return { success: true };
 }
+
+export async function getCategories(budgetId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  // Get all groups for this budget
+  const groups = await db
+    .select()
+    .from(categoryGroups)
+    .where(eq(categoryGroups.budgetId, budgetId));
+    
+  return groups;
+}

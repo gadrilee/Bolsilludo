@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getBudgets } from '../actions/budgets';
 import { getCategories } from '../actions/categories';
+import { getAccounts } from '../actions/accounts';
 import { CreateBudgetForm } from './create-budget-form';
 import { BudgetView } from './budget-view';
 
@@ -17,10 +18,12 @@ export default async function DashboardPage() {
   const budgets = await getBudgets();
   const activeBudget = budgets.length > 0 ? budgets[0] : null;
 
-  // If active budget, fetch its category groups
+  // If active budget, fetch its category groups and accounts
   let groups: any[] = [];
+  let accounts: any[] = [];
   if (activeBudget) {
     groups = await getCategories(activeBudget.id);
+    accounts = await getAccounts(activeBudget.id);
   }
 
   return (
@@ -76,7 +79,7 @@ export default async function DashboardPage() {
           <CreateBudgetForm />
         </div>
       ) : (
-        <BudgetView budgetId={activeBudget.id} budgetName={activeBudget.name} groups={groups} />
+        <BudgetView budgetId={activeBudget.id} budgetName={activeBudget.name} groups={groups} accounts={accounts} />
       )}
     </main>
   );
