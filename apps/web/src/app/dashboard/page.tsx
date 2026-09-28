@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getBudgets } from '../actions/budgets';
 import { getCategories } from '../actions/categories';
 import { getAccounts } from '../actions/accounts';
+import { getTransactions } from '../actions/transactions';
 import { CreateBudgetForm } from './create-budget-form';
 import { BudgetView } from './budget-view';
 
@@ -21,9 +22,11 @@ export default async function DashboardPage() {
   // If active budget, fetch its category groups and accounts
   let groups: any[] = [];
   let accounts: any[] = [];
+  let transactions: any[] = [];
   if (activeBudget) {
     groups = await getCategories(activeBudget.id);
     accounts = await getAccounts(activeBudget.id);
+    transactions = await getTransactions(activeBudget.id);
   }
 
   return (

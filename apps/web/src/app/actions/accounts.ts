@@ -39,8 +39,9 @@ export async function createAccount(formData: FormData) {
       accountId: newAccount.id,
       date: new Date(),
       amountMinor,
-      payee: 'Starting Balance',
+      payeeName: 'Starting Balance',
       memo: 'Initial account balance',
+      status: 'cleared',
     });
   }
 

@@ -1,17 +1,22 @@
+'use client';
+
 import { useState } from 'react';
 import { createCategoryGroup, createCategory } from '../actions/categories';
 import { CreateAccountForm } from './create-account-form';
+import { LedgerView } from './ledger-view';
 
 type BudgetViewProps = {
   budgetId: string;
   budgetName: string;
   groups: any[]; 
   accounts: any[];
+  transactions: any[];
 };
 
-export function BudgetView({ budgetId, budgetName, groups, accounts }: BudgetViewProps) {
+export function BudgetView({ budgetId, budgetName, groups, accounts, transactions }: BudgetViewProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'budget' | 'ledger'>('budget');
 
   async function handleAddGroup(e: React.FormEvent) {
     e.preventDefault();
@@ -20,11 +25,10 @@ export function BudgetView({ budgetId, budgetName, groups, accounts }: BudgetVie
     setNewGroupName('');
   }
 
-  // Calculate Total Ready to Assign
-  // In a real app this is derived from the Budget Engine (all unassigned transactions + starting balances)
-  // For now, let's just sum the account balances from the UI mockup perspective.
-  // Wait, accounts don't have balance column, transactions do. We mock this for now.
-  const mockRTA = 0; 
+  // Calculate Total Ready to Assign from income transactions
+  const mockRTA = transactions
+    .filter(tx => Number(tx.amountMinor) > 0)
+    .reduce((acc, tx) => acc + Number(tx.amountMinor), 0);
 
   return (
     <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
@@ -38,11 +42,18 @@ export function BudgetView({ budgetId, budgetName, groups, accounts }: BudgetVie
             {accounts.length === 0 ? (
               <li style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Sin cuentas aún.</li>
             ) : (
-              accounts.map(acc => (
-                <li key={acc.id} style={{ fontSize: '0.95rem', fontWeight: 500, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{acc.name}</span>
-                </li>
-              ))
+              accounts.map(acc => {
+                const accBalance = transactions
+                  .filter(tx => tx.accountId === acc.id)
+                  .reduce((sum, tx) => sum + Number(tx.amountMinor), 0);
+
+                return (
+                  <li key={acc.id} style={{ fontSize: '0.95rem', fontWeight: 500, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{acc.name}</span>
+                    <span style={{ color: accBalance >= 0 ? 'var(--text)' : 'var(--danger)' }}>${(accBalance / 100).toFixed(2)}</span>
+                  </li>
+                );
+              })
             )}
           </ul>
 
@@ -55,68 +66,90 @@ export function BudgetView({ budgetId, budgetName, groups, accounts }: BudgetVie
         </div>
       </aside>
 
-      {/* Main: Budget */}
+      {/* Main: Budget / Ledger */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
-        {/* Ready to Assign Banner */}
-        <div
-          style={{
-            background: 'var(--primary)',
-            color: 'var(--bg)',
-            borderRadius: '1rem',
-            padding: '2rem',
-            textAlign: 'center',
-            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.2)'
-          }}
-        >
-          <p style={{ fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9 }}>
-            Listo para Asignar
-          </p>
-          <h2 style={{ fontSize: '3rem', fontWeight: 700, margin: '0.5rem 0' }}>${(mockRTA / 100).toFixed(2)}</h2>
-          <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>
-            Asigna todos tus ingresos hasta llegar a cero.
-          </p>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
+          <button 
+            onClick={() => setActiveTab('budget')}
+            style={{ padding: '0.5rem 1rem', background: activeTab === 'budget' ? 'var(--primary)' : 'transparent', color: activeTab === 'budget' ? 'var(--bg)' : 'var(--text)', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Presupuesto
+          </button>
+          <button 
+            onClick={() => setActiveTab('ledger')}
+            style={{ padding: '0.5rem 1rem', background: activeTab === 'ledger' ? 'var(--primary)' : 'transparent', color: activeTab === 'ledger' ? 'var(--bg)' : 'var(--text)', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Todas las Transacciones
+          </button>
         </div>
 
-        {/* Categories Section */}
-        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', overflow: 'hidden' }}>
-          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Categorías</h3>
-            <form onSubmit={handleAddGroup} style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                placeholder="Nuevo grupo..."
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                style={{ padding: '0.5rem 1rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)' }}
-              />
-              <button type="submit" style={{ padding: '0.5rem 1rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                + Grupo
-              </button>
-            </form>
-          </div>
+        {activeTab === 'budget' ? (
+          <>
+            {/* Ready to Assign Banner */}
+            <div
+              style={{
+                background: 'var(--primary)',
+                color: 'var(--bg)',
+                borderRadius: '1rem',
+                padding: '2rem',
+                textAlign: 'center',
+                boxShadow: '0 4px 20px rgba(16, 185, 129, 0.2)'
+              }}
+            >
+              <p style={{ fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9 }}>
+                Listo para Asignar
+              </p>
+              <h2 style={{ fontSize: '3rem', fontWeight: 700, margin: '0.5rem 0' }}>${(mockRTA / 100).toFixed(2)}</h2>
+              <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                Asigna todos tus ingresos hasta llegar a cero.
+              </p>
+            </div>
 
-          <div>
-            {groups.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No tienes categorías todavía. Crea tu primer grupo arriba.
+            {/* Categories Section */}
+            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', overflow: 'hidden' }}>
+              <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Categorías</h3>
+                <form onSubmit={handleAddGroup} style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Nuevo grupo..."
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    style={{ padding: '0.5rem 1rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)' }}
+                  />
+                  <button type="submit" style={{ padding: '0.5rem 1rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                    + Grupo
+                  </button>
+                </form>
               </div>
-            ) : (
-              groups.map((group) => (
-                <div key={group.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <div style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.02)', fontWeight: 600, color: 'var(--primary)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{group.name}</span>
+
+              <div>
+                {groups.length === 0 ? (
+                  <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    No tienes categorías todavía. Crea tu primer grupo arriba.
                   </div>
-                  <div style={{ padding: '0.5rem 1.5rem' }}>
-                    <button style={{ color: 'var(--text-muted)', fontSize: '0.875rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem 0' }}>
-                      + Añadir categoría
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                ) : (
+                  groups.map((group) => (
+                    <div key={group.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                      <div style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.02)', fontWeight: 600, color: 'var(--primary)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{group.name}</span>
+                      </div>
+                      <div style={{ padding: '0.5rem 1.5rem' }}>
+                        <button style={{ color: 'var(--text-muted)', fontSize: '0.875rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem 0' }}>
+                          + Añadir categoría
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <LedgerView budgetId={budgetId} accounts={accounts} transactions={transactions} />
+        )}
       </div>
 
       {showAccountModal && (

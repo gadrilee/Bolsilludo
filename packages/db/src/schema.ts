@@ -27,17 +27,35 @@ export const accounts = pgTable("accounts", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
 });
 
-// 3. Transactions (Skeleton for now, will be expanded in Tx Engine spec)
+// 3. Payees
+export const payees = pgTable("payees", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id).notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 4. Transactions 
 export const transactions = pgTable("transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
   budgetId: uuid("budget_id").references(() => budgets.id).notNull(),
   accountId: uuid("account_id").references(() => accounts.id).notNull(),
   date: timestamp("date", { withTimezone: true }).notNull(),
   amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(), // P2 Integer Money
-  payee: text("payee"),
+  payeeId: uuid("payee_id").references(() => payees.id),
+  payeeName: text("payee_name"), // Optional fallback
   memo: text("memo"),
+  status: text("status").notNull().default("cleared"), // 'pending', 'cleared', 'reconciled'
   voidedAt: timestamp("voided_at", { withTimezone: true }), // P3 Immutable History
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 4.1 Transaction Splits
+export const transactionSplits = pgTable("transaction_splits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transactionId: uuid("transaction_id").references(() => transactions.id).notNull(),
+  categoryId: uuid("category_id"), // Can be null if it's 'Ready to Assign' / Income
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
 });
 
 // 4. Budget Members
