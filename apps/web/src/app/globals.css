@@ -7,9 +7,8 @@
 
 @import "./theme.css";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
 
 /* ── Base reset ────────────────────────────────────────── */
 *, *::before, *::after {
