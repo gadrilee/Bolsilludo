@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+
+# Environment files — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Supabase local
+supabase/.temp/
+supabase/seed.sql  # only if contains real data
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Turbo cache
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+.cache/
+tmp/
+
+# NEVER: real financial data, bank payloads, receipt images of real users
+# Add patterns here if needed, e.g.:
+# services/imports/data/*.csv
