@@ -1,15 +1,27 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { getBudgets } from '../actions/budgets';
+import { getCategories } from '../actions/categories';
+import { CreateBudgetForm } from './create-budget-form';
+import { BudgetView } from './budget-view';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect('/login');
 
   const name = user.user_metadata?.full_name ?? user.email;
+
+  // Fetch user budgets
+  const budgets = await getBudgets();
+  const activeBudget = budgets.length > 0 ? budgets[0] : null;
+
+  // If active budget, fetch its category groups
+  let groups: any[] = [];
+  if (activeBudget) {
+    groups = await getCategories(activeBudget.id);
+  }
 
   return (
     <main
@@ -18,68 +30,54 @@ export default async function DashboardPage() {
         background: 'var(--bg)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         flexDirection: 'column',
-        gap: '1.5rem',
+        padding: '3rem 1rem',
+        gap: '2rem',
         color: 'var(--text)',
         fontFamily: 'var(--font-sans)',
       }}
     >
-      <div
-        style={{
-          padding: '2.5rem 3rem',
-          background: 'var(--glass-bg)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '1.25rem',
-          backdropFilter: 'blur(var(--glass-blur))',
-          textAlign: 'center',
-          maxWidth: '480px',
-          width: '100%',
-        }}
-      >
-        <p
-          style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}
-        >
-          Bienvenido a
-        </p>
-        <h1
-          style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}
-        >
-          Bolsilludo
-        </h1>
-        <p style={{ fontSize: '1.125rem', fontWeight: 500 }}>
-          ¡Hola, {name}! 👋
-        </p>
-        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          Tu dashboard está en construcción. Estamos en el Milestone M1.
-        </p>
-      </div>
+      <header style={{ width: '100%', maxWidth: '900px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>Bolsilludo</h1>
+          <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {name}</p>
+        </div>
 
-      <form
-        action={async () => {
-          'use server';
-          const { createClient } = await import('@/lib/supabase/server');
-          const { redirect } = await import('next/navigation');
-          const supabase = await createClient();
-          await supabase.auth.signOut();
-          redirect('/login');
-        }}
-      >
-        <button
-          type="submit"
-          style={{
-            padding: '0.625rem 1.5rem',
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--glass-border)',
-            borderRadius: '0.625rem',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
+        <form
+          action={async () => {
+            'use server';
+            const { createClient } = await import('@/lib/supabase/server');
+            const { redirect } = await import('next/navigation');
+            const supabase = await createClient();
+            await supabase.auth.signOut();
+            redirect('/login');
           }}
         >
-          Cerrar sesión
-        </button>
-      </form>
+          <button
+            type="submit"
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '0.5rem',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            Cerrar sesión
+          </button>
+        </form>
+      </header>
+
+      {!activeBudget ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <CreateBudgetForm />
+        </div>
+      ) : (
+        <BudgetView budgetId={activeBudget.id} budgetName={activeBudget.name} groups={groups} />
+      )}
     </main>
   );
 }
