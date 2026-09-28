@@ -87,3 +87,13 @@ export const categories = pgTable("categories", {
   icon: text("icon"), // emoji or icon name
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 7. Category Allocations (Assigned Money per Month)
+export const categoryAllocations = pgTable("category_allocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  categoryId: uuid("category_id").references(() => categories.id).notNull(),
+  month: text("month").notNull(), // Format 'YYYY-MM'
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

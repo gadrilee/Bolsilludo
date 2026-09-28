@@ -8,6 +8,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bolsilludo/budget-engine':
+        specifier: workspace:*
+        version: link:../../packages/budget-engine
       '@bolsilludo/db':
         specifier: workspace:*
         version: link:../../packages/db

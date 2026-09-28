@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { createCategoryGroup, createCategory } from '../actions/categories';
+import { assignMoney } from '../actions/allocations';
 import { CreateAccountForm } from './create-account-form';
 import { LedgerView } from './ledger-view';
 
@@ -11,12 +12,15 @@ type BudgetViewProps = {
   groups: any[]; 
   accounts: any[];
   transactions: any[];
+  monthState?: any;
+  currentMonth?: string;
 };
 
-export function BudgetView({ budgetId, budgetName, groups, accounts, transactions }: BudgetViewProps) {
+export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth }: BudgetViewProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'budget' | 'ledger'>('budget');
+  const [isPending, startTransition] = useTransition();
 
   async function handleAddGroup(e: React.FormEvent) {
     e.preventDefault();
@@ -25,10 +29,8 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
     setNewGroupName('');
   }
 
-  // Calculate Total Ready to Assign from income transactions
-  const mockRTA = transactions
-    .filter(tx => Number(tx.amountMinor) > 0)
-    .reduce((acc, tx) => acc + Number(tx.amountMinor), 0);
+  // Calculate Total Ready to Assign from the budget engine!
+  const mockRTA = monthState ? Number(monthState.rta) : 0;
 
   return (
     <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
@@ -135,11 +137,49 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                     <div key={group.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                       <div style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.02)', fontWeight: 600, color: 'var(--primary)', display: 'flex', justifyContent: 'space-between' }}>
                         <span>{group.name}</span>
+                        <div style={{ display: 'flex', gap: '2rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-muted)' }}>
+                          <span style={{ width: '80px', textAlign: 'right' }}>Asignado</span>
+                          <span style={{ width: '80px', textAlign: 'right' }}>Actividad</span>
+                          <span style={{ width: '80px', textAlign: 'right' }}>Disponible</span>
+                        </div>
                       </div>
-                      <div style={{ padding: '0.5rem 1.5rem' }}>
-                        <button style={{ color: 'var(--text-muted)', fontSize: '0.875rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem 0' }}>
-                          + Añadir categoría
-                        </button>
+                      <div style={{ padding: '0.5rem 0' }}>
+                        {group.categories?.map((cat: any) => {
+                          const catState = monthState?.categories.find((c: any) => c.categoryId === cat.id);
+                          const assigned = catState ? Number(catState.assigned) / 100 : 0;
+                          const activity = catState ? Number(catState.activity) / 100 : 0;
+                          const available = catState ? Number(catState.available) / 100 : 0;
+
+                          return (
+                            <div key={cat.id} style={{ padding: '0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>{cat.name}</span>
+                              <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                                <input
+                                  type="number"
+                                  defaultValue={assigned}
+                                  onBlur={(e) => {
+                                    if (currentMonth) {
+                                      const val = Math.round(Number(e.target.value) * 100);
+                                      startTransition(() => {
+                                        assignMoney(cat.id, currentMonth, BigInt(val));
+                                      });
+                                    }
+                                  }}
+                                  style={{ width: '80px', textAlign: 'right', padding: '0.25rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.25rem' }}
+                                />
+                                <span style={{ width: '80px', textAlign: 'right', color: 'var(--text-muted)' }}>${activity.toFixed(2)}</span>
+                                <span style={{ width: '80px', textAlign: 'right', color: available >= 0 ? 'var(--primary)' : 'var(--danger)', fontWeight: 600 }}>
+                                  ${available.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{ padding: '0.5rem 1.5rem' }}>
+                          <button style={{ color: 'var(--text-muted)', fontSize: '0.875rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem 0' }}>
+                            + Añadir categoría
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
