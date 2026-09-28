@@ -39,3 +39,33 @@ export const transactions = pgTable("transactions", {
   voidedAt: timestamp("voided_at", { withTimezone: true }), // P3 Immutable History
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 4. Budget Members
+export const budgetMembers = pgTable("budget_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id).notNull(),
+  userId: uuid("user_id").notNull(), // References auth.users or public.profiles
+  role: text("role").notNull().default("editor"), // 'owner', 'editor', 'viewer'
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 5. Category Groups
+export const categoryGroups = pgTable("category_groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id).notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isHidden: integer("is_hidden").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 6. Categories
+export const categories = pgTable("categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  groupId: uuid("group_id").references(() => categoryGroups.id).notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isHidden: integer("is_hidden").notNull().default(0),
+  icon: text("icon"), // emoji or icon name
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

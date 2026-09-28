@@ -3,6 +3,6 @@ packages:
   - "packages/*"
   - "services/*"
 allowBuilds:
-  es5-ext: set this to true or false
-  esbuild: set this to true or false
-  unrs-resolver: set this to true or false
+  es5-ext: true
+  esbuild: true
+  unrs-resolver: true
