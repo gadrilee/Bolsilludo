@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Bolsilludo app icon">
+  <title>Bolsilludo</title>
+  <!-- Maskable safe zone: 80% of 512 = 409px, centered = 51.5px inset -->
+  <defs>
+    <linearGradient id="icon-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#12305F"/>
+      <stop offset="100%" stop-color="#0B2046"/>
+    </linearGradient>
+    <linearGradient id="icon-b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5AEFBD"/>
+      <stop offset="50%"  stop-color="#16B78C"/>
+      <stop offset="100%" stop-color="#0B7A5A"/>
+    </linearGradient>
+    <radialGradient id="icon-coin" cx="40%" cy="35%" r="60%">
+      <stop offset="0%"   stop-color="#FFE083"/>
+      <stop offset="70%"  stop-color="#F4C13A"/>
+      <stop offset="100%" stop-color="#C08800"/>
+    </radialGradient>
+    <clipPath id="icon-clip-coin">
+      <rect x="185" y="295" width="142" height="50"/>
+    </clipPath>
+  </defs>
+  <!-- Background rounded square (maskable) -->
+  <rect width="512" height="512" rx="96" fill="url(#icon-bg)"/>
+  <!-- Letter B scaled to 512 canvas -->
+  <path
+    d="
+      M 60 38
+      L 60 474
+      L 298 474
+      C 404 474 462 424 462 356
+      C 462 315 434 282 394 267
+      C 434 250 460 217 460 178
+      C 460 110 404 38 298 38
+      Z
+      M 163 115
+      L 290 115
+      C 356 115 356 242 290 242
+      L 163 242
+      Z
+      M 163 322
+      L 299 322
+      C 377 322 377 472 299 472
+      L 163 472
+      Z
+    "
+    fill="url(#icon-b)"
+  />
+  <!-- Pocket -->
+  <rect x="193" y="312" width="152" height="112" rx="14" fill="#0B3A2A"/>
+  <rect x="193" y="306" width="152" height="18" rx="8" fill="#0F5040"/>
+  <!-- Coin peeking -->
+  <ellipse cx="269" cy="308" rx="52" ry="30" fill="url(#icon-coin)" clip-path="url(#icon-clip-coin)"/>
+</svg>

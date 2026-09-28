@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 322" fill="none" role="img" aria-label="Bolsilludo logo (navy)">
+  <title>Bolsilludo</title>
+  <path
+    d="M 30 20 L 30 302 L 155 302 C 210 302 240 272 240 232 C 240 206 226 185 205 175 C 226 163 238 142 238 116 C 238 72 210 20 155 20 Z M 85 75 L 150 75 C 185 75 185 158 150 158 L 85 158 Z M 85 210 L 155 210 C 195 210 195 300 155 300 L 85 300 Z"
+    fill="#0B2046"
+  />
+  <rect x="100" y="200" width="80" height="70" rx="8" fill="rgba(11,32,70,0.25)"/>
+  <rect x="100" y="197" width="80" height="10" rx="4" fill="rgba(11,32,70,0.40)"/>
+  <ellipse cx="140" cy="197" rx="28" ry="16" fill="rgba(11,32,70,0.55)" clip-path="url(#clip-coin-n)"/>
+  <defs>
+    <clipPath id="clip-coin-n">
+      <rect x="95" y="185" width="70" height="30"/>
+    </clipPath>
+  </defs>
+</svg>
