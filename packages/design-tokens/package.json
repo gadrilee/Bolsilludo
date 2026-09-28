@@ -1,0 +1,10 @@
+{
+  "name": "@bolsilludo/design-tokens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bolsilludo single source of truth for design tokens",
+  "scripts": {
+    "build": "node build-css.js",
+    "test": "node validate-contrast.js"
+  }
+}

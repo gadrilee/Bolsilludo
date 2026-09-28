@@ -1,0 +1,66 @@
+/* 
+  Bolsilludo Design Tokens 
+  Auto-generated from specs/00b-design-system/brand/tokens.json 
+*/
+
+:root {
+  --bol-navy-900: #0B2046;
+  --bol-emerald-500: #16B78C;
+  --bol-green-700: #0B7A5A;
+  --bol-gold-400: #F4C13A;
+  --bol-emerald-300: #5AEFBD;
+  --bol-navy-800: #12305F;
+  --bol-navy-700: #1B3F73;
+  --bol-ink-muted: #A9B8D3;
+  --bol-ink-muted-l: #4B5D7E;
+  --bol-gold-700: #7A5800;
+  --bol-danger-d: #FF6B70;
+  --bol-danger-l: #C62F35;
+
+  /* Theme: Dark (Default) */
+  --bg: var(--bol-navy-900);
+  --surface-1: var(--bol-navy-800);
+  --text: #FFFFFF;
+  --text-muted: var(--bol-ink-muted);
+  --primary: var(--bol-emerald-500);
+  --on-primary: var(--bol-navy-900);
+  --accent: var(--bol-gold-400);
+  --danger: var(--bol-danger-d);
+
+  /* Glass UI */
+  --glass-bg: rgba(255,255,255,0.08);
+  --glass-border: rgba(255,255,255,0.18);
+  --glass-blur: 20px;
+
+  /* Depth */
+  --z-1: 0;
+  --z-2: 10;
+  --z-3: 20;
+  --z-4: 30;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 350ms;
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-enter: cubic-bezier(0, 0, 0.2, 1);
+  --easing-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+:root[data-theme="light"] {
+  --bg: #F6F8FB;
+  --surface-1: #FFFFFF;
+  --text: var(--bol-navy-900);
+  --text-muted: var(--bol-ink-muted-l);
+  --primary: var(--bol-green-700);
+  --on-primary: #FFFFFF;
+  --accent: var(--bol-gold-700);
+  --danger: var(--bol-danger-l);
+}
