@@ -1,6 +1,11 @@
-# TASKS — Reconciliation
+# TASKS
 
-- [ ] [T08.1] Drizzle schema para `reconciliations`.
-- [ ] [T08.2] Lógica de bloqueo en transacciones para estado `RECONCILED`.
-- [ ] [T08.3] API Action para iniciar y completar el flujo de conciliación.
-- [ ] [T08.4] UI Flujo de Reconciliación (Ingreso de balance banco, cálculo de diferencia, ajuste opcional).
+## 08.11 Tasks atómicas
+
+- [ ] [T08.1] Migración `reconciliations` + `reconcile_dirty` + RLS. — `feat(db): add reconciliations`
+- [ ] [T08.2] `startReconciliation` y cálculo de saldo confirmado. — `feat(recon): add start reconciliation`
+- [ ] [T08.3] `completeReconciliation` (+ ajuste como `reconciliation_adjustment`). — `feat(recon): add complete reconciliation`
+- [ ] [T08.4] Protección de conciliadas y diálogo de 4 opciones. — `feat(recon): add reconciled protection flow`
+- [ ] [T08.5] `suggestMatches` (score). — `feat(recon): add match suggestions`
+- [ ] [T08.6] UI asistente de conciliación. — `feat(ui): add reconciliation assistant`
+- [ ] [T08.7] Tests integración + E2E. — `test(recon): add reconciliation tests`
