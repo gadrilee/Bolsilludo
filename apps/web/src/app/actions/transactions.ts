@@ -1,16 +1,13 @@
 'use server';
 
-import { db, transactions, transactionSplits, payees, accounts, categories } from '@bolsilludo/db';
+import { randomUUID } from 'node:crypto';
+import { db, transactions, transactionSplits, payees, accounts, categories, categoryGroups } from '@bolsilludo/db';
 import { eq, desc, and, inArray } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 import { revalidatePath } from 'next/cache';
-import { computeCreditCardStatus, type CreditCardInspector } from '@bolsilludo/budget-engine';
+import { computeCreditCardStatus, sumAccountBalanceAsOf, type CreditCardInspector } from '@bolsilludo/budget-engine';
 
 export async function createTransaction(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-
   const budgetId = formData.get('budgetId') as string;
   const accountId = formData.get('accountId') as string;
   const amountStr = formData.get('amount') as string;
@@ -21,6 +18,20 @@ export async function createTransaction(formData: FormData) {
 
   if (!budgetId || !accountId || !amountStr || !dateStr) {
     throw new Error("Missing required transaction fields");
+  }
+  await requireBudgetRole(budgetId, 'editor');
+
+  const [account] = await db.select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.budgetId, budgetId)));
+  if (!account) throw new Error('ACCOUNT_NOT_IN_BUDGET');
+
+  if (categoryId) {
+    const [category] = await db.select({ id: categories.id })
+      .from(categories)
+      .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(and(eq(categories.id, categoryId), eq(categoryGroups.budgetId, budgetId)));
+    if (!category) throw new Error('CATEGORY_NOT_IN_BUDGET');
   }
 
   const amountMinor = BigInt(amountStr);
@@ -55,10 +66,6 @@ export async function createTransaction(formData: FormData) {
  * - Payment category: NOT categorized as expense (BR-CC-001)
  */
 export async function transferMoney(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-
   const budgetId = formData.get('budgetId') as string;
   const fromAccountId = formData.get('fromAccountId') as string;
   const toAccountId = formData.get('toAccountId') as string;
@@ -69,34 +76,61 @@ export async function transferMoney(formData: FormData) {
   if (!budgetId || !fromAccountId || !toAccountId || !amountStr) {
     throw new Error("Missing required transfer fields");
   }
+  await requireBudgetRole(budgetId, 'editor');
 
-  const amountMinor = BigInt(Math.round(Number(amountStr) * 100));
+  const [fromAccount] = await db.select().from(accounts)
+    .where(and(eq(accounts.id, fromAccountId), eq(accounts.budgetId, budgetId)));
+  const [toAccount] = await db.select().from(accounts)
+    .where(and(eq(accounts.id, toAccountId), eq(accounts.budgetId, budgetId)));
+  if (!fromAccount || !toAccount) throw new Error('ACCOUNT_NOT_IN_BUDGET');
+  if (fromAccountId === toAccountId) throw new Error('TRANSFER_SAME_ACCOUNT');
+  const amount = Number(amountStr);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('AMOUNT_INVALID');
+
+  const amountMinor = BigInt(Math.round(amount * 100));
+  if (amountMinor <= 0n) throw new Error('AMOUNT_ZERO');
   const date = dateStr ? new Date(dateStr) : new Date();
+  if (Number.isNaN(date.getTime())) throw new Error('INVALID_TRANSACTION_DATE');
+  const transferGroupId = randomUUID();
+  const fromTransactionId = randomUUID();
+  const toTransactionId = randomUUID();
 
-  // Check if destination is a credit card (to determine transaction semantics)
-  const [toAccount] = await db.select().from(accounts).where(eq(accounts.id, toAccountId));
-  const isCreditCardPayment = toAccount?.type === 'credit_card';
+  await db.transaction(async (tx) => {
+    const [currentFromAccount] = await tx.select().from(accounts)
+      .where(and(eq(accounts.id, fromAccountId), eq(accounts.budgetId, budgetId)));
+    const [currentToAccount] = await tx.select().from(accounts)
+      .where(and(eq(accounts.id, toAccountId), eq(accounts.budgetId, budgetId)));
+    if (!currentFromAccount || !currentToAccount) throw new Error('ACCOUNT_NOT_IN_BUDGET');
+    if (currentFromAccount.closedAt || currentToAccount.closedAt) throw new Error('ACCOUNT_CLOSED');
+    if (currentFromAccount.currency !== currentToAccount.currency) throw new Error('TRANSFER_CURRENCY_MISMATCH');
 
-  // Entry on the SOURCE account (money leaves)
-  await db.insert(transactions).values({
-    budgetId,
-    accountId: fromAccountId,
-    amountMinor: -amountMinor,
-    date,
-    payeeName: isCreditCardPayment ? `Pago tarjeta: ${toAccount.name}` : 'Transfer',
-    memo: memo ?? undefined,
-    status: 'cleared',
-  });
-
-  // Entry on the DESTINATION account (money arrives / debt reduced)
-  await db.insert(transactions).values({
-    budgetId,
-    accountId: toAccountId,
-    amountMinor: amountMinor, // Positive = debt reduction for card
-    date,
-    payeeName: isCreditCardPayment ? 'Pago recibido' : 'Transfer',
-    memo: memo ?? undefined,
-    status: 'cleared',
+    const isCreditCardPayment = currentToAccount.type === 'credit_card';
+    await tx.insert(transactions).values([
+      {
+        id: fromTransactionId,
+        budgetId,
+        accountId: fromAccountId,
+        amountMinor: -amountMinor,
+        date,
+        payeeName: isCreditCardPayment ? `Pago tarjeta: ${currentToAccount.name}` : 'Transfer',
+        memo: memo ?? undefined,
+        status: 'cleared',
+        transferGroupId,
+        transferPeerId: toTransactionId,
+      },
+      {
+        id: toTransactionId,
+        budgetId,
+        accountId: toAccountId,
+        amountMinor,
+        date,
+        payeeName: isCreditCardPayment ? 'Pago recibido' : 'Transfer',
+        memo: memo ?? undefined,
+        status: 'cleared',
+        transferGroupId,
+        transferPeerId: fromTransactionId,
+      },
+    ]);
   });
 
   // BR-CC-001: Payment to card is NOT recorded as a category expense.
@@ -104,19 +138,60 @@ export async function transferMoney(formData: FormData) {
   // not by creating a split here.
 
   revalidatePath('/dashboard');
-  return { success: true };
+  return { success: true, transferGroupId };
 }
 
 export async function getTransactions(budgetId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  await requireBudgetRole(budgetId, 'viewer');
 
-  return await db
-    .select()
+  const rows = await db
+    .select({
+      transaction: {
+        id: transactions.id,
+        budgetId: transactions.budgetId,
+        accountId: transactions.accountId,
+        date: transactions.date,
+        amountMinor: transactions.amountMinor,
+        payeeName: transactions.payeeName,
+        memo: transactions.memo,
+        externalId: transactions.externalId,
+        scheduledId: transactions.scheduledId,
+        occurrenceDate: transactions.occurrenceDate,
+        status: transactions.status,
+        voidedAt: transactions.voidedAt,
+        createdAt: transactions.createdAt,
+      },
+      splitId: transactionSplits.id,
+      splitCategoryId: transactionSplits.categoryId,
+      splitAmountMinor: transactionSplits.amountMinor,
+    })
     .from(transactions)
+    .leftJoin(transactionSplits, eq(transactionSplits.transactionId, transactions.id))
     .where(eq(transactions.budgetId, budgetId))
     .orderBy(desc(transactions.date));
+
+  type LedgerTransaction = (typeof rows)[number]['transaction'] & {
+    splits: { id: string; categoryId: string | null; amountMinor: bigint }[];
+  };
+  const transactionsById = new Map<string, LedgerTransaction>();
+
+  for (const row of rows) {
+    let transaction = transactionsById.get(row.transaction.id);
+    if (!transaction) {
+      transaction = { ...row.transaction, splits: [] };
+      transactionsById.set(transaction.id, transaction);
+    }
+
+    if (row.splitId && row.splitAmountMinor !== null) {
+      transaction.splits.push({
+        id: row.splitId,
+        categoryId: row.splitCategoryId,
+        amountMinor: row.splitAmountMinor,
+      });
+    }
+  }
+
+  return Array.from(transactionsById.values());
 }
 
 /**
@@ -124,27 +199,37 @@ export async function getTransactions(budgetId: string) {
  * Uses pure engine functions — no UI calculation (BR-CC-070).
  */
 export async function getCreditCardStatus(accountId: string, month: string, budgetId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  await requireBudgetRole(budgetId, 'viewer');
+  const [account] = await db.select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.budgetId, budgetId)));
+  if (!account) throw new Error('ACCOUNT_NOT_IN_BUDGET');
 
   // Get all transactions for this card account
   const cardTxs = await db
-    .select()
+    .select({
+      id: transactions.id,
+      accountId: transactions.accountId,
+      date: transactions.date,
+      amountMinor: transactions.amountMinor,
+      payeeName: transactions.payeeName,
+      voidedAt: transactions.voidedAt,
+    })
     .from(transactions)
     .where(and(
       eq(transactions.budgetId, budgetId),
       eq(transactions.accountId, accountId),
     ));
 
-  // Compute working balance
-  const workingBalance = cardTxs.reduce((sum, tx) => sum + BigInt(tx.amountMinor), 0n);
+  const asOf = new Date();
+  const workingBalance = sumAccountBalanceAsOf(cardTxs, accountId, asOf);
+  const currentCardTxs = cardTxs.filter(tx => !tx.voidedAt && tx.date.getTime() <= asOf.getTime());
 
   // Classify transactions for the inspector
   let purchases = 0n;
   let refunds = 0n;
   let payments = 0n;
-  for (const tx of cardTxs) {
+  for (const tx of currentCardTxs) {
     const amt = BigInt(tx.amountMinor);
     if (amt < 0n) purchases += -amt;      // Debt-creating
     else if (tx.payeeName === 'Pago recibido') payments += amt; // Payment received

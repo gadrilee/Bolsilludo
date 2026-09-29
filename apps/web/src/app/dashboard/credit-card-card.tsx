@@ -13,6 +13,7 @@ type CreditCardCardProps = {
   budgetId: string;
   accounts: { id: string; name: string; type: string }[];
   status: CreditCardStatusDTO | null;
+  canEdit: boolean;
 };
 
 function StatusBadge({ status }: { status: CreditCardStatusDTO['status'] | undefined }) {
@@ -31,7 +32,7 @@ function StatusBadge({ status }: { status: CreditCardStatusDTO['status'] | undef
   );
 }
 
-export function CreditCardCard({ account, budgetId, accounts, status }: CreditCardCardProps) {
+export function CreditCardCard({ account, budgetId, accounts, status, canEdit }: CreditCardCardProps) {
   const [showPayModal, setShowPayModal] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
   const [payAmount, setPayAmount] = useState('');
@@ -121,12 +122,12 @@ export function CreditCardCard({ account, budgetId, accounts, status }: CreditCa
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
+          {canEdit && <button
             onClick={() => setShowPayModal(true)}
             style={{ flex: 1, padding: '0.5rem', background: 'var(--primary)', color: 'var(--bg)', border: 'none', borderRadius: '0.5rem', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}
           >
             💸 Pagar tarjeta
-          </button>
+          </button>}
           <button
             onClick={() => setShowInspector(s => !s)}
             style={{ padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.8rem' }}

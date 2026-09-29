@@ -7,7 +7,7 @@ import { getTransactions, getCreditCardStatus } from '../actions/transactions';
 import { getAllocationsForMonth } from '../actions/allocations';
 import { CreateBudgetForm } from './create-budget-form';
 import { BudgetView } from './budget-view';
-import { calculateMonthState } from '@bolsilludo/budget-engine';
+import { calculateMonthState, summarizeBudgetActivity, type BudgetTransactionLine } from '@bolsilludo/budget-engine';
 import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 import { getPendingImportBatch } from '../actions/imports';
 import { getScheduledTransactions } from '../actions/scheduled';
@@ -96,9 +96,28 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       const mTx = txByMonth[m] || [];
       const mAlloc = allocByMonth[m] || [];
 
-      const inflowsToRTA = mTx
-        .filter(tx => Number(tx.amountMinor) > 0)
-        .reduce((acc, tx) => acc + BigInt(tx.amountMinor), 0n);
+      const activity = summarizeBudgetActivity(mTx.flatMap((tx): BudgetTransactionLine[] => {
+        const isVoided = tx.voidedAt !== null || tx.status === 'voided';
+        const isTransfer = /^(transfer|pago)/i.test(tx.payeeName ?? '');
+
+        if (tx.splits.length > 0) {
+          return tx.splits.map(split => ({
+            amountMinor: BigInt(split.amountMinor),
+            categoryId: split.categoryId,
+            isSplit: true,
+            isTransfer,
+            isVoided,
+          }));
+        }
+
+        return [{
+          amountMinor: BigInt(tx.amountMinor),
+          categoryId: null,
+          isSplit: false,
+          isTransfer,
+          isVoided,
+        }];
+      }));
 
       const categoryInputs = groups.flatMap(g =>
         (g.categories ?? []).map(c => {
@@ -114,16 +133,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             };
           }
 
-          // MVP: negative transactions in this month for this category
-          // Wait, we don't have transactionSplits categorization yet, but if we did:
-          // Activity is usually negative. For now, it's 0 since we haven't linked tx to categories.
-          const activity = 0n;
+          const categoryActivity = activity.activityByCategory.get(c.id) ?? 0n;
 
           return {
             categoryId: c.id,
             previousAvailable: lastCategoriesState[c.id]?.available || 0n,
             assigned: alloc ? BigInt(alloc.amountMinor) : 0n,
-            activity,
+            activity: categoryActivity,
             goal: goalDef
           };
         })
@@ -132,7 +148,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       monthState = calculateMonthState({
         month: m,
         previousRTA: lastRTA,
-        inflowsToRTA,
+        inflowsToRTA: activity.inflowsToRta,
         categories: categoryInputs,
       });
 
@@ -227,6 +243,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         <BudgetView
           budgetId={activeBudget.id}
           budgetName={activeBudget.name}
+          role={activeBudget.role}
           groups={groups}
           accounts={accounts}
           transactions={transactions}

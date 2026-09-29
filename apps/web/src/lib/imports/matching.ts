@@ -98,9 +98,7 @@ export function matchTransaction(
         decision = 'MATCHED';
     }
   } else if (bestScore >= 0.60) {
-    // Requires manual review (we'll mark as MATCHED but with lower score, UI shows as review)
-    // Actually, decision = 'NEW' but we provide matchedTransactionId so UI shows "Review Match"
-    decision = 'NEW'; 
+    decision = 'NEEDS_REVIEW';
   }
 
   // Multiply score by 1000 to store as integer
@@ -141,7 +139,7 @@ export function deduplicateBatch(
         const availableExisting = existingDbTransactions.filter(t => !usedExistingIds.has(t.id));
         const matchResult = matchTransaction(row, availableExisting);
 
-        if (matchResult.decision === 'MATCHED' || matchResult.decision === 'DUPLICATE') {
+        if (matchResult.decision === 'MATCHED' || matchResult.decision === 'NEEDS_REVIEW' || matchResult.decision === 'DUPLICATE') {
             if (matchResult.matchedTransactionId) {
                 usedExistingIds.add(matchResult.matchedTransactionId);
             }

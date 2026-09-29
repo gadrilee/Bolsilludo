@@ -1,8 +1,9 @@
 'use server';
 
 import { db, transactions, transactionSplits, accounts, categoryGroups, categories } from '@bolsilludo/db';
-import { eq, and, gte, lte, desc, sql, notIlike, ilike } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { eq, and, gte, lte, isNull, notIlike } from 'drizzle-orm';
+import { requireBudgetRole } from '@/lib/auth/authorization';
+import { summarizeIncomeAndExpense } from '@bolsilludo/budget-engine';
 
 export type IncomeVsExpenseResult = {
   income: number;
@@ -12,15 +13,15 @@ export type IncomeVsExpenseResult = {
 
 // YYYY-MM-DD format for dates
 export async function getIncomeVsExpense(budgetId: string, fromDate: string, toDate: string): Promise<IncomeVsExpenseResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  await requireBudgetRole(budgetId, 'viewer');
 
-  // BR-RPT-010: Transferencias excluidas
-  // In MVP, transfers have payeeName like 'Transfer' or 'Pago%'
   const txs = await db.select({
-      amount: transactions.amountMinor,
-      categoryId: transactionSplits.categoryId
+      amountMinor: transactions.amountMinor,
+      splitId: transactionSplits.id,
+      splitAmountMinor: transactionSplits.amountMinor,
+      categoryId: transactionSplits.categoryId,
+      payeeName: transactions.payeeName,
+      voidedAt: transactions.voidedAt,
     })
     .from(transactions)
     .leftJoin(transactionSplits, eq(transactions.id, transactionSplits.transactionId))
@@ -28,29 +29,27 @@ export async function getIncomeVsExpense(budgetId: string, fromDate: string, toD
       eq(transactions.budgetId, budgetId),
       gte(transactions.date, new Date(fromDate)),
       lte(transactions.date, new Date(toDate + 'T23:59:59.999Z')),
-      notIlike(transactions.payeeName, 'Transfer%'),
-      notIlike(transactions.payeeName, 'Pago%')
+      isNull(transactions.voidedAt),
     ));
 
-  let income = 0n;
-  let expense = 0n;
-
-  for (const tx of txs) {
-    const amt = BigInt(tx.amount);
-    if (!tx.categoryId && amt > 0n) {
-      // Income to RTA
-      income += amt;
-    } else if (tx.categoryId) {
-      if (amt < 0n) expense -= amt; // expense is stored as positive sum
-      else income += amt; // refund or inflow directly to category
-    }
-  }
+  const summary = summarizeIncomeAndExpense(txs.map(tx => {
+    const isSplit = tx.splitId !== null;
+    return {
+      amountMinor: isSplit && tx.splitAmountMinor !== null
+        ? BigInt(tx.splitAmountMinor)
+        : BigInt(tx.amountMinor),
+      categoryId: isSplit ? tx.categoryId : null,
+      isSplit,
+      isTransfer: /^(transfer|pago)/i.test(tx.payeeName ?? ''),
+      isStartingBalance: (tx.payeeName ?? '').toLowerCase() === 'starting balance',
+      isVoided: tx.voidedAt !== null,
+    };
+  }));
 
   return {
-    income: Number(income) / 100,
-    expense: Number(expense) / 100,
-    net: Number(income + expense) / 100 // expense is added because we tracked it as negative in total net, wait. 
-    // actually, let's recalculate net.
+    income: Number(summary.incomeMinor) / 100,
+    expense: Number(summary.expenseMinor) / 100,
+    net: Number(summary.netMinor) / 100,
   };
 }
 
@@ -61,9 +60,7 @@ export type SpendingByCategoryResult = {
 }[];
 
 export async function getSpendingByCategory(budgetId: string, fromDate: string, toDate: string): Promise<SpendingByCategoryResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  await requireBudgetRole(budgetId, 'viewer');
 
   const txs = await db.select({
       amount: transactionSplits.amountMinor,
@@ -121,9 +118,7 @@ export type NetWorthResult = {
 };
 
 export async function getNetWorth(budgetId: string, asOfDate: string): Promise<NetWorthResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  await requireBudgetRole(budgetId, 'viewer');
 
   const allTxs = await db.select({
       amount: transactions.amountMinor,
@@ -134,6 +129,7 @@ export async function getNetWorth(budgetId: string, asOfDate: string): Promise<N
     .where(and(
       eq(transactions.budgetId, budgetId),
       lte(transactions.date, new Date(asOfDate + 'T23:59:59.999Z'))
+      ,isNull(transactions.voidedAt)
     ));
 
   let assets = 0n;
@@ -172,9 +168,7 @@ export type CashFlowResult = {
 };
 
 export async function getCashFlow(budgetId: string, fromDate: string, toDate: string): Promise<CashFlowResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  await requireBudgetRole(budgetId, 'viewer');
 
   const txs = await db.select({
       amount: transactions.amountMinor,
@@ -186,8 +180,10 @@ export async function getCashFlow(budgetId: string, fromDate: string, toDate: st
       eq(transactions.budgetId, budgetId),
       gte(transactions.date, new Date(fromDate)),
       lte(transactions.date, new Date(toDate + 'T23:59:59.999Z')),
+      isNull(transactions.voidedAt),
       notIlike(transactions.payeeName, 'Transfer%'),
-      notIlike(transactions.payeeName, 'Pago%')
+      notIlike(transactions.payeeName, 'Pago%'),
+      notIlike(transactions.payeeName, 'Starting Balance')
     ));
 
   let inflows = 0n;

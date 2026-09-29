@@ -13,15 +13,15 @@ type Group = { id: string; name: string; categories?: { id: string; name: string
 
 type LedgerViewProps = {
   budgetId: string;
+  canEdit: boolean;
   accounts: any[];
   transactions: any[];
   groups?: Group[];
   pendingBatches?: Record<string, any>;
   scheduledTransactions?: any[];
-  userId?: string;
 };
 
-export function LedgerView({ budgetId, accounts, transactions, groups = [], pendingBatches = {}, scheduledTransactions = [], userId = '' }: LedgerViewProps) {
+export function LedgerView({ budgetId, canEdit, accounts, transactions, groups = [], pendingBatches = {}, scheduledTransactions = [] }: LedgerViewProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   
@@ -75,8 +75,14 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
   return (
     <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', overflow: 'hidden' }}>
 
+      {!canEdit && (
+        <p style={{ padding: '0.75rem 1.5rem', margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          Tienes acceso de solo lectura a las transacciones de este presupuesto.
+        </p>
+      )}
+
       {/* Quick Add Form */}
-      <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
+      {canEdit && <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
             + Nueva Transacción
@@ -160,7 +166,7 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
           💡 Usa montos <strong>positivos</strong> para ingresos y <strong>negativos</strong> para gastos (ej: -150.50)
         </p>
-      </div>
+      </div>}
 
       {/* Transactions Table */}
       <div style={{ overflowX: 'auto' }}>
@@ -189,7 +195,7 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
                     {item.categoryId ? allCategories.find(c => c.id === item.categoryId)?.name : 'RTA'}
                   </td>
                   <td style={{ padding: '0.75rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                    {!item.autoPost && (
+                    {canEdit && !item.autoPost && (
                       <button 
                         onClick={() => startTransition(() => postOccurrence(item.id, item.nextDate))}
                         style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.25rem', border: '1px solid var(--primary)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer' }}
@@ -214,6 +220,14 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
             ) : (
               transactions.map(tx => {
                 const amount = Number(tx.amountMinor) / 100;
+                const splitCategories = (tx.splits ?? [])
+                  .map((split: { categoryId: string | null }) => allCategories.find(category => category.id === split.categoryId)?.name)
+                  .filter(Boolean);
+                const categoryLabel = splitCategories.length > 0
+                  ? splitCategories.join(' + ')
+                  : /^transfer/i.test(tx.payeeName ?? '')
+                    ? 'Transferencia'
+                    : amount > 0 ? 'Por asignar' : 'Sin categoría';
                 return (
                   <tr key={tx.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '0.75rem 1.5rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
@@ -223,7 +237,7 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
                       {tx.payeeName || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin beneficiario</span>}
                     </td>
                     <td style={{ padding: '0.75rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                      RTA
+                      {categoryLabel}
                     </td>
                     <td style={{ padding: '0.75rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                       {tx.memo || '—'}
@@ -286,7 +300,7 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
       )}
 
       {/* Notifications for pending batches */}
-      {Object.entries(pendingBatches).filter(([_, batch]) => batch !== null).map(([accId, pending]) => {
+      {canEdit && Object.entries(pendingBatches).filter(([, batch]) => batch !== null).map(([accId, pending]) => {
         const acc = accounts.find(a => a.id === accId);
         if (!acc) return null;
         return (
@@ -303,18 +317,17 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
       })}
 
       {/* Actual wizard modal */}
-      {activeWizard && importAccountId && accounts.find(a => a.id === importAccountId) && (
+      {canEdit && activeWizard && importAccountId && accounts.find(a => a.id === importAccountId) && (
         <ImportWizard
           budgetId={budgetId}
           accountId={importAccountId}
           accountName={accounts.find(a => a.id === importAccountId)!.name}
-          userId={userId}
           pendingBatch={pendingBatches[importAccountId]}
           onClose={() => setActiveWizard(false)}
         />
       )}
 
-      {showScheduledModal && (
+      {canEdit && showScheduledModal && (
         <ScheduledModal 
           budgetId={budgetId}
           accounts={accounts}

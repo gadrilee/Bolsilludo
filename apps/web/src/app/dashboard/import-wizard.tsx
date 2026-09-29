@@ -9,12 +9,11 @@ type ImportWizardProps = {
   budgetId: string;
   accountId: string;
   accountName: string;
-  userId: string;
   onClose: () => void;
   pendingBatch?: { batch: any, rows: any[] } | null;
 };
 
-export function ImportWizard({ budgetId, accountId, accountName, userId, onClose, pendingBatch }: ImportWizardProps) {
+export function ImportWizard({ budgetId, accountId, accountName, onClose, pendingBatch }: ImportWizardProps) {
   const [step, setStep] = useState(pendingBatch ? 4 : 1);
   const [file, setFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -83,7 +82,7 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
     startTransition(async () => {
       try {
         const sourceType = file!.name.endsWith('.csv') ? 'CSV' : file!.name.endsWith('.ofx') ? 'OFX' : 'QFX';
-        await createImportBatch(budgetId, accountId, sourceType, file!.name, fileContent, parsedRows, userId);
+        await createImportBatch(budgetId, accountId, sourceType, file!.name, fileContent, parsedRows);
         setStep(4); // The review step relies on reloading to get the `pendingBatch` from DB
         onClose(); // In a real app we'd fetch the new batch and show step 4. For MVP we close and let the main page show the active batch.
       } catch (err: any) {
@@ -95,6 +94,7 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
   // --- REVIEW STEP (Step 4) ---
   if (pendingBatch && step === 4) {
     const { batch, rows } = pendingBatch;
+    const reviewRows = rows.filter(r => r.decision === 'NEEDS_REVIEW').length;
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '2rem' }}>
         <div style={{ background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', padding: '2rem', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
@@ -108,6 +108,10 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
             <div style={{ padding: '1rem', background: 'var(--glass-bg)', borderRadius: '0.5rem', flex: 1 }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Duplicados</p>
               <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>{batch.duplicateRows}</p>
+            </div>
+            <div style={{ padding: '1rem', background: 'var(--glass-bg)', borderRadius: '0.5rem', flex: 1 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Revisión requerida</p>
+              <p style={{ fontSize: '1.5rem', fontWeight: 700, color: reviewRows > 0 ? '#f59e0b' : 'var(--text)' }}>{reviewRows}</p>
             </div>
             <div style={{ padding: '1rem', background: 'var(--glass-bg)', borderRadius: '0.5rem', flex: 1 }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total a procesar</p>
@@ -135,7 +139,8 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
                       {(Number(r.amountMinor) / 100).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ padding: '0.75rem' }}>
-                      {r.decision === 'DUPLICATE' ? <span style={{ color: 'var(--text-muted)' }}>Duplicado</span> :
+                      {r.decision === 'NEEDS_REVIEW' ? <span style={{ color: '#f59e0b' }}>Posible coincidencia</span> :
+                       r.decision === 'DUPLICATE' ? <span style={{ color: 'var(--text-muted)' }}>Duplicado</span> :
                        r.decision === 'MATCHED' ? <span style={{ color: 'var(--primary)' }}>Emparejado</span> :
                        <span style={{ color: 'var(--text)' }}>Nuevo</span>}
                     </td>
@@ -145,6 +150,7 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
                         onChange={(e) => startTransition(() => resolveImportRow(r.id, e.target.value as any))}
                         style={{ padding: '0.25rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.25rem', color: 'var(--text)' }}
                       >
+                        {r.decision === 'NEEDS_REVIEW' && <option value="NEEDS_REVIEW" disabled>Revisión requerida</option>}
                         <option value="NEW">Nuevo</option>
                         <option value="MATCHED">Emparejado</option>
                         <option value="DUPLICATE">Omitir (Duplicado)</option>
@@ -168,9 +174,9 @@ export function ImportWizard({ budgetId, accountId, accountName, userId, onClose
             <button 
               onClick={() => startTransition(() => { commitImportBatch(batch.id); onClose(); })}
               style={{ padding: '0.75rem 1.5rem', background: 'var(--primary)', border: 'none', color: 'var(--bg)', borderRadius: '0.5rem', fontWeight: 700, cursor: 'pointer' }}
-              disabled={isPending}
+              disabled={isPending || reviewRows > 0}
             >
-              {isPending ? 'Aplicando...' : 'Aplicar Transacciones'}
+              {isPending ? 'Aplicando...' : reviewRows > 0 ? 'Resuelve las coincidencias' : 'Aplicar Transacciones'}
             </button>
           </div>
         </div>

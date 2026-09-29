@@ -13,6 +13,7 @@ import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 import { deduplicateBatch } from '@/lib/imports/matching';
 import type { NormalizedImportTransaction } from '@/lib/imports/types';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 
 export async function createImportBatch(
   budgetId: string,
@@ -20,9 +21,14 @@ export async function createImportBatch(
   sourceType: string,
   filename: string,
   fileContent: string,
-  parsedRows: NormalizedImportTransaction[],
-  userId: string
+  parsedRows: NormalizedImportTransaction[]
 ) {
+  const { user } = await requireBudgetRole(budgetId, 'editor');
+  const [account] = await db.select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.budgetId, budgetId)));
+  if (!account) throw new Error('ACCOUNT_NOT_IN_BUDGET');
+
   // BR-IMP-011: File checksum and uniqueness check
   const checksum = crypto.createHash('sha256').update(fileContent).digest('hex');
   
@@ -78,7 +84,7 @@ export async function createImportBatch(
       duplicateRows,
       rejectedRows: 0,
       idempotencyKey: crypto.randomUUID(),
-      createdBy: userId,
+      createdBy: user.id,
     }).returning();
 
     // Store raw payload (if it was an API sync, but here we store file content)
@@ -117,6 +123,12 @@ export async function createImportBatch(
 }
 
 export async function getPendingImportBatch(accountId: string) {
+  const [account] = await db.select({ budgetId: accounts.budgetId })
+    .from(accounts)
+    .where(eq(accounts.id, accountId));
+  if (!account) throw new Error('ACCOUNT_NOT_FOUND');
+  await requireBudgetRole(account.budgetId, 'viewer');
+
   const batch = await db.select().from(importBatches)
     .where(
       and(
@@ -135,6 +147,15 @@ export async function getPendingImportBatch(accountId: string) {
 }
 
 export async function resolveImportRow(rowId: string, decision: 'NEW' | 'MATCHED' | 'REJECTED' | 'DUPLICATE') {
+  if (!['NEW', 'MATCHED', 'REJECTED', 'DUPLICATE'].includes(decision)) {
+    throw new Error('INVALID_IMPORT_DECISION');
+  }
+  const [row] = await db.select({ budgetId: importRows.budgetId })
+    .from(importRows)
+    .where(eq(importRows.id, rowId));
+  if (!row) throw new Error('IMPORT_ROW_NOT_FOUND');
+  await requireBudgetRole(row.budgetId, 'editor');
+
   await db.update(importRows)
     .set({ decision })
     .where(eq(importRows.id, rowId));
@@ -142,9 +163,23 @@ export async function resolveImportRow(rowId: string, decision: 'NEW' | 'MATCHED
 }
 
 export async function commitImportBatch(batchId: string) {
+  const [existingBatch] = await db.select({ budgetId: importBatches.budgetId })
+    .from(importBatches)
+    .where(eq(importBatches.id, batchId));
+  if (!existingBatch) throw new Error('IMPORT_BATCH_NOT_FOUND');
+  await requireBudgetRole(existingBatch.budgetId, 'editor');
+
   return await db.transaction(async (tx) => {
     const [batch] = await tx.select().from(importBatches).where(eq(importBatches.id, batchId));
     if (!batch || batch.status === 'APPLIED') return;
+
+    const unresolvedRows = await tx.select({ id: importRows.id })
+      .from(importRows)
+      .where(and(
+        eq(importRows.batchId, batchId),
+        eq(importRows.decision, 'NEEDS_REVIEW'),
+      ));
+    if (unresolvedRows.length > 0) throw new Error('IMPORT_REVIEW_REQUIRED');
 
     const rowsToApply = await tx.select().from(importRows)
       .where(
@@ -198,6 +233,12 @@ export async function commitImportBatch(batchId: string) {
 }
 
 export async function cancelImportBatch(batchId: string) {
+  const [batch] = await db.select({ budgetId: importBatches.budgetId })
+    .from(importBatches)
+    .where(eq(importBatches.id, batchId));
+  if (!batch) throw new Error('IMPORT_BATCH_NOT_FOUND');
+  await requireBudgetRole(batch.budgetId, 'editor');
+
   await db.transaction(async (tx) => {
     await tx.update(importBatches)
       .set({ status: 'CANCELLED', completedAt: new Date() })

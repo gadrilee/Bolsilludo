@@ -5,9 +5,10 @@ import { getIncomeVsExpense, getSpendingByCategory, getNetWorth, getCashFlow, ty
 
 type ReportsViewProps = {
   budgetId: string;
+  canExport: boolean;
 };
 
-export function ReportsView({ budgetId }: ReportsViewProps) {
+export function ReportsView({ budgetId, canExport }: ReportsViewProps) {
   const [activeReport, setActiveReport] = useState<'income-expense' | 'spending' | 'net-worth' | 'cash-flow'>('income-expense');
   
   const [isPending, startTransition] = useTransition();
@@ -57,13 +58,13 @@ export function ReportsView({ budgetId }: ReportsViewProps) {
         </select>
 
         <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto', alignItems: 'center' }}>
-          <a 
+          {canExport && <a
             href={`/api/export?budgetId=${budgetId}`}
             download
             style={{ padding: '0.5rem 1rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '0.5rem', fontWeight: 600, textDecoration: 'none', marginRight: '1rem', fontSize: '0.875rem' }}
           >
             Descargar CSV
-          </a>
+          </a>}
           <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Desde:</span>
           <input type="date" value={dateRange.from} onChange={e => setDateRange(prev => ({...prev, from: e.target.value}))} style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.5rem' }} />
           <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Hasta:</span>

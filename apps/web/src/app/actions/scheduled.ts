@@ -1,13 +1,16 @@
 'use server';
 
 import { db } from '@bolsilludo/db';
-import { scheduledTransactions, transactions, transactionSplits } from '@bolsilludo/db';
+import { scheduledTransactions, transactions, transactionSplits, accounts, categories, categoryGroups } from '@bolsilludo/db';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { calculateDueOccurrences, nextOccurrence } from '@bolsilludo/budget-engine';
+import { advanceOccurrenceCursor, calculateDueOccurrences, nextOccurrence } from '@bolsilludo/budget-engine';
 import type { ScheduledFrequency } from '@bolsilludo/budget-engine';
+import { requireBudgetRole } from '@/lib/auth/authorization';
+import { isValidCronSecret } from '@/lib/auth/cron';
 
 export async function getScheduledTransactions(budgetId: string) {
+  await requireBudgetRole(budgetId, 'viewer');
   const list = await db.select()
     .from(scheduledTransactions)
     .where(and(
@@ -27,6 +30,20 @@ export async function createScheduledTransaction(formData: FormData) {
   const frequencyType = formData.get('frequencyType') as ScheduledFrequency;
   const startAt = formData.get('startAt') as string;
   const autoPost = formData.get('autoPost') === 'true';
+
+  await requireBudgetRole(budgetId, 'editor');
+  const [account] = await db.select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.budgetId, budgetId)));
+  if (!account) throw new Error('ACCOUNT_NOT_IN_BUDGET');
+
+  if (categoryId) {
+    const [category] = await db.select({ id: categories.id })
+      .from(categories)
+      .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(and(eq(categories.id, categoryId), eq(categoryGroups.budgetId, budgetId)));
+    if (!category) throw new Error('CATEGORY_NOT_IN_BUDGET');
+  }
 
   let amountMinor = 0n;
   try {
@@ -50,7 +67,9 @@ export async function createScheduledTransaction(formData: FormData) {
   revalidatePath('/dashboard');
 }
 
-export async function processDueScheduled(budgetId: string) {
+export async function processDueScheduled(budgetId: string, cronSecret: string) {
+  if (!isValidCronSecret(cronSecret)) throw new Error('UNAUTHORIZED_CRON');
+
   // Get today's date in budget timezone (using UTC for simplicity in MVP)
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -69,6 +88,7 @@ export async function processDueScheduled(budgetId: string) {
       frequencyType: schedule.frequencyType as ScheduledFrequency,
       lastOccurrenceAt: schedule.lastOccurrenceAt,
     }, todayStr);
+    let lastOccurrenceAt = schedule.lastOccurrenceAt;
 
     for (const date of dueDates) {
       try {
@@ -81,6 +101,7 @@ export async function processDueScheduled(budgetId: string) {
               eq(transactions.occurrenceDate, date)
             ));
 
+          let occurrencePosted = existing.length > 0;
           if (existing.length === 0) {
             // Determine status based on autoPost (BR-SCH-030)
             // auto_post=true -> status='pending' (unapproved in UI)
@@ -99,6 +120,7 @@ export async function processDueScheduled(budgetId: string) {
                 occurrenceDate: date,
                 status: 'pending' // pending approval
               }).returning();
+              occurrencePosted = Boolean(newTx);
               // If category set, insert a split
               if (schedule.categoryId && newTx) {
                 await tx.insert(transactionSplits).values({
@@ -110,11 +132,12 @@ export async function processDueScheduled(budgetId: string) {
             }
           }
 
-          // Update last occurrence if date is greater
-          if (!schedule.lastOccurrenceAt || new Date(date) > new Date(schedule.lastOccurrenceAt)) {
+          const nextCursor = advanceOccurrenceCursor(lastOccurrenceAt, date, occurrencePosted);
+          if (nextCursor !== lastOccurrenceAt) {
             await tx.update(scheduledTransactions)
-              .set({ lastOccurrenceAt: date })
+              .set({ lastOccurrenceAt: nextCursor })
               .where(eq(scheduledTransactions.id, schedule.id));
+            lastOccurrenceAt = nextCursor;
           }
         });
       } catch (err) {
@@ -125,6 +148,12 @@ export async function processDueScheduled(budgetId: string) {
 }
 
 export async function postOccurrence(scheduleId: string, occurrenceDate: string) {
+  const [existingSchedule] = await db.select({
+    budgetId: scheduledTransactions.budgetId,
+  }).from(scheduledTransactions).where(eq(scheduledTransactions.id, scheduleId));
+  if (!existingSchedule) throw new Error('SCHEDULE_NOT_FOUND');
+  await requireBudgetRole(existingSchedule.budgetId, 'editor');
+
   // Manual posting of an occurrence that was autoPost=false
   await db.transaction(async (tx) => {
     const [schedule] = await tx.select().from(scheduledTransactions).where(eq(scheduledTransactions.id, scheduleId));
@@ -137,6 +166,7 @@ export async function postOccurrence(scheduleId: string, occurrenceDate: string)
         eq(transactions.occurrenceDate, occurrenceDate)
       ));
 
+    let occurrencePosted = existing.length > 0;
     if (existing.length === 0) {
       const [newTx] = await tx.insert(transactions).values({
         budgetId: schedule.budgetId,
@@ -149,6 +179,7 @@ export async function postOccurrence(scheduleId: string, occurrenceDate: string)
         occurrenceDate: occurrenceDate,
         status: 'cleared'
       }).returning();
+      occurrencePosted = Boolean(newTx);
       // If category set, insert a split
       if (schedule.categoryId && newTx) {
         await tx.insert(transactionSplits).values({
@@ -158,12 +189,13 @@ export async function postOccurrence(scheduleId: string, occurrenceDate: string)
         });
       }
       
-      // Update last occurrence
-      if (!schedule.lastOccurrenceAt || new Date(occurrenceDate) > new Date(schedule.lastOccurrenceAt)) {
-        await tx.update(scheduledTransactions)
-          .set({ lastOccurrenceAt: occurrenceDate })
-          .where(eq(scheduledTransactions.id, schedule.id));
-      }
+    }
+
+    const nextCursor = advanceOccurrenceCursor(schedule.lastOccurrenceAt, occurrenceDate, occurrencePosted);
+    if (nextCursor !== schedule.lastOccurrenceAt) {
+      await tx.update(scheduledTransactions)
+        .set({ lastOccurrenceAt: nextCursor })
+        .where(eq(scheduledTransactions.id, schedule.id));
     }
   });
   

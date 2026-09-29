@@ -134,7 +134,75 @@ async function run() {
     );
   `;
 
-  console.log('Migrations 0004, 0005, 0006 applied successfully');
+  await sql.begin(async (tx) => {
+    await tx`CREATE UNIQUE INDEX IF NOT EXISTS budget_members_budget_user_uq
+      ON public.budget_members (budget_id, user_id)`;
+
+    await tx`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'budget_members_role_allowed'
+          AND conrelid = 'public.budget_members'::regclass
+      ) THEN
+        ALTER TABLE public.budget_members
+          ADD CONSTRAINT budget_members_role_allowed
+          CHECK (role IN ('owner', 'admin', 'editor', 'viewer')) NOT VALID;
+      END IF;
+    END $$`;
+    await tx`ALTER TABLE public.budget_members VALIDATE CONSTRAINT budget_members_role_allowed`;
+
+    await tx`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'budget_invitations_role_allowed'
+          AND conrelid = 'public.budget_invitations'::regclass
+      ) THEN
+        ALTER TABLE public.budget_invitations
+          ADD CONSTRAINT budget_invitations_role_allowed
+          CHECK (role IN ('admin', 'editor', 'viewer')) NOT VALID;
+      END IF;
+    END $$`;
+    await tx`ALTER TABLE public.budget_invitations VALIDATE CONSTRAINT budget_invitations_role_allowed`;
+
+    await tx`ALTER TABLE public.transactions
+      ADD COLUMN IF NOT EXISTS transfer_group_id uuid,
+      ADD COLUMN IF NOT EXISTS transfer_peer_id uuid`;
+
+    await tx`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'transactions_transfer_columns_paired'
+          AND conrelid = 'public.transactions'::regclass
+      ) THEN
+        ALTER TABLE public.transactions
+          ADD CONSTRAINT transactions_transfer_columns_paired
+          CHECK ((transfer_group_id IS NULL) = (transfer_peer_id IS NULL)) NOT VALID;
+      END IF;
+    END $$`;
+    await tx`ALTER TABLE public.transactions VALIDATE CONSTRAINT transactions_transfer_columns_paired`;
+
+    await tx`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'transactions_transfer_peer_fk'
+          AND conrelid = 'public.transactions'::regclass
+      ) THEN
+        ALTER TABLE public.transactions
+          ADD CONSTRAINT transactions_transfer_peer_fk
+          FOREIGN KEY (transfer_peer_id)
+          REFERENCES public.transactions (id)
+          DEFERRABLE INITIALLY DEFERRED
+          NOT VALID;
+      END IF;
+    END $$`;
+    await tx`ALTER TABLE public.transactions VALIDATE CONSTRAINT transactions_transfer_peer_fk`;
+
+    await tx`CREATE INDEX IF NOT EXISTS transactions_transfer_group_idx
+      ON public.transactions (transfer_group_id)
+      WHERE transfer_group_id IS NOT NULL`;
+  });
+
+  console.log('Migrations 0004, 0005, 0006, authorization roles, and transfer pairs applied successfully');
   process.exit(0);
 }
 

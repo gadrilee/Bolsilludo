@@ -1,8 +1,8 @@
 'use server';
 
-import { db, goals } from '@bolsilludo/db';
+import { db, goals, categories, categoryGroups } from '@bolsilludo/db';
 import { eq, and } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -26,10 +26,6 @@ const goalSchema = z.object({
 }, "HAVE_A_BALANCE must be CUSTOM and not repeat");
 
 export async function createGoal(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-
   const payload = {
     budgetId: formData.get('budgetId') as string,
     categoryId: formData.get('categoryId') as string,
@@ -49,6 +45,16 @@ export async function createGoal(formData: FormData) {
     throw new Error('Invalid goal definition: ' + parsed.error.message);
   }
 
+  await requireBudgetRole(parsed.data.budgetId, 'editor');
+  const [category] = await db.select({ id: categories.id })
+    .from(categories)
+    .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(and(
+      eq(categories.id, parsed.data.categoryId),
+      eq(categoryGroups.budgetId, parsed.data.budgetId),
+    ));
+  if (!category) throw new Error('CATEGORY_NOT_IN_BUDGET');
+
   // Delete existing goal for category if it exists (one active goal per category)
   await db.delete(goals).where(eq(goals.categoryId, parsed.data.categoryId));
 
@@ -58,17 +64,15 @@ export async function createGoal(formData: FormData) {
 }
 
 export async function getGoals(budgetId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  await requireBudgetRole(budgetId, 'viewer');
 
   return await db.select().from(goals).where(eq(goals.budgetId, budgetId));
 }
 
 export async function snoozeGoal(goalId: string, month: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  const [goal] = await db.select({ budgetId: goals.budgetId }).from(goals).where(eq(goals.id, goalId));
+  if (!goal) throw new Error('GOAL_NOT_FOUND');
+  await requireBudgetRole(goal.budgetId, 'editor');
 
   // month is YYYY-MM, we need to save YYYY-MM-01
   const snoozedMonth = `${month}-01`;
@@ -81,9 +85,9 @@ export async function snoozeGoal(goalId: string, month: string) {
 }
 
 export async function deleteGoal(goalId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
+  const [goal] = await db.select({ budgetId: goals.budgetId }).from(goals).where(eq(goals.id, goalId));
+  if (!goal) throw new Error('GOAL_NOT_FOUND');
+  await requireBudgetRole(goal.budgetId, 'editor');
 
   await db.delete(goals).where(eq(goals.id, goalId));
 

@@ -46,6 +46,8 @@ export const transactions = pgTable("transactions", {
   payeeId: uuid("payee_id").references(() => payees.id),
   payeeName: text("payee_name"), // Optional fallback
   memo: text("memo"),
+  transferGroupId: uuid("transfer_group_id"),
+  transferPeerId: uuid("transfer_peer_id"),
   externalId: text("external_id"), // Added for imports matching
   scheduledId: uuid("scheduled_id"),
   occurrenceDate: date("occurrence_date"),

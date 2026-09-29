@@ -11,7 +11,7 @@ import { CreditCardCard } from './credit-card-card';
 import { ReportsView } from './reports-view';
 import { MembersView } from './members-view';
 import { MonthPicker } from './month-picker';
-import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
+import { sumAccountBalanceAsOf, type CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 
 type Category = { id: string; name: string; groupId: string; sortOrder: number; isHidden: number; icon: string | null; createdAt: Date };
 type Group = { id: string; name: string; budgetId: string; sortOrder: number; isHidden: number; createdAt: Date; categories: Category[] };
@@ -21,6 +21,7 @@ type MonthState = { rta: bigint; overspentFromPreviousMonth: bigint; categories:
 type BudgetViewProps = {
   budgetId: string;
   budgetName: string;
+  role: string;
   groups: Group[];
   accounts: any[];
   transactions: any[];
@@ -34,7 +35,7 @@ type BudgetViewProps = {
   userId?: string;
 };
 
-export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth, ccStatuses = {}, pendingBatches = {}, scheduledTransactions = [], members = [], invitations = [], userId = '' }: BudgetViewProps) {
+export function BudgetView({ budgetId, budgetName, role, groups, accounts, transactions, monthState, currentMonth, ccStatuses = {}, pendingBatches = {}, scheduledTransactions = [], members = [], invitations = [], userId = '' }: BudgetViewProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [addingCategoryToGroup, setAddingCategoryToGroup] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -42,6 +43,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
   const [activeTab, setActiveTab] = useState<'budget' | 'ledger' | 'reports' | 'members'>('budget');
   const [selectedCategoryGoal, setSelectedCategoryGoal] = useState<{ id: string, name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const canEdit = role === 'owner' || role === 'admin' || role === 'editor';
 
   async function handleAddGroup(e: React.FormEvent) {
     e.preventDefault();
@@ -66,12 +68,13 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
   const regularAccounts = accounts.filter(a => a.type !== 'credit_card');
   const creditCardAccounts = accounts.filter(a => a.type === 'credit_card');
   
-  const totalBalance = accounts.reduce((sum, acc) => {
-    const accBalance = transactions
-      .filter(tx => tx.accountId === acc.id)
-      .reduce((s, tx) => s + Number(tx.amountMinor), 0);
-    return sum + accBalance;
-  }, 0);
+  const asOf = new Date();
+  const balancesByAccount = new Map(accounts.map((account) => [
+    account.id,
+    sumAccountBalanceAsOf(transactions, account.id, asOf),
+  ]));
+  const totalBalanceMinor = Array.from(balancesByAccount.values()).reduce((sum, balance) => sum + balance, 0n);
+  const totalBalance = Number(totalBalanceMinor);
 
   // Net worth = assets + liabilities (cards are negative)
   const netWorth = totalBalance;
@@ -94,9 +97,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
               </li>
             ) : (
               regularAccounts.map(acc => {
-                const accBalance = transactions
-                  .filter(tx => tx.accountId === acc.id)
-                  .reduce((sum, tx) => sum + Number(tx.amountMinor), 0);
+                const accBalance = Number(balancesByAccount.get(acc.id) ?? 0n);
                 return (
                   <li key={acc.id} style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0' }}>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -119,12 +120,12 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
             </span>
           </div>
 
-          <button
+          {canEdit && <button
             onClick={() => setShowAccountModal(true)}
             style={{ marginTop: '1rem', width: '100%', padding: '0.5rem', background: 'transparent', border: '1px dashed var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem' }}
           >
             + Añadir Cuenta
-          </button>
+          </button>}
         </div>
 
         {/* Credit Card Accounts */}
@@ -140,6 +141,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                 budgetId={budgetId}
                 accounts={accounts}
                 status={ccStatuses[cc.id] ?? null}
+                canEdit={canEdit}
               />
             ))}
           </div>
@@ -208,7 +210,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
               {/* Header row */}
               <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Categorías</h3>
-                <form onSubmit={handleAddGroup} style={{ display: 'flex', gap: '0.5rem' }}>
+                {canEdit && <form onSubmit={handleAddGroup} style={{ display: 'flex', gap: '0.5rem' }}>
                   <input
                     type="text"
                     placeholder="Nuevo grupo..."
@@ -220,7 +222,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                   <button type="submit" className="glass" style={{ padding: '0.4rem 0.75rem', color: 'var(--text)', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                     + Grupo
                   </button>
-                </form>
+                </form>}
               </div>
 
               {/* Column headers */}
@@ -237,7 +239,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
               {groups.length === 0 ? (
                 <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <p style={{ marginBottom: '0.5rem' }}>No tienes grupos de categorías todavía.</p>
-                  <p style={{ fontSize: '0.875rem' }}>Crea tu primer grupo usando el campo de arriba.</p>
+                  {canEdit && <p style={{ fontSize: '0.875rem' }}>Crea tu primer grupo usando el campo de arriba.</p>}
                 </div>
               ) : (
                 groups.map((group) => (
@@ -261,8 +263,9 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <button
+                              disabled={!canEdit}
                               onClick={() => setSelectedCategoryGoal({ id: cat.id, name: cat.name })}
-                              style={{ background: 'transparent', border: 'none', color: 'var(--text)', textAlign: 'left', cursor: 'pointer', padding: 0, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--text)', textAlign: 'left', cursor: canEdit ? 'pointer' : 'default', padding: 0, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                             >
                               {cat.name}
                               {catState?.goalResult && (
@@ -288,6 +291,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                                 type="number"
                                 step="0.01"
                                 defaultValue={assigned.toFixed(2)}
+                                disabled={!canEdit}
                                 onBlur={(e) => {
                                   if (currentMonth) {
                                     const val = Math.round(Number(e.target.value) * 100);
@@ -319,7 +323,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                     })}
 
                     {/* Add category row */}
-                    <div style={{ padding: '0.4rem 1.5rem' }}>
+                    {canEdit && <div style={{ padding: '0.4rem 1.5rem' }}>
                       {addingCategoryToGroup === group.id ? (
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                           <input
@@ -349,7 +353,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                           + Añadir categoría
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 ))
               )}
@@ -363,20 +367,20 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
             groups={groups} 
             pendingBatches={pendingBatches}
             scheduledTransactions={scheduledTransactions}
-            userId={userId}
+            canEdit={canEdit}
           />
         ) : activeTab === 'reports' ? (
-          <ReportsView budgetId={budgetId} />
+          <ReportsView budgetId={budgetId} canExport={canEdit} />
         ) : (
           <MembersView budgetId={budgetId} members={members} invitations={invitations} userId={userId} />
         )}
       </div>
 
-      {showAccountModal && (
+      {canEdit && showAccountModal && (
         <CreateAccountForm budgetId={budgetId} onClose={() => setShowAccountModal(false)} />
       )}
 
-      {selectedCategoryGoal && (
+      {canEdit && selectedCategoryGoal && (
         <GoalSheet
           budgetId={budgetId}
           categoryId={selectedCategoryGoal.id}

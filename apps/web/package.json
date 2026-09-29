@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:authz": "tsx --test ../../tests/unit/authorization-policy.test.mts ../../tests/unit/import-matching.test.mts"
   },
   "dependencies": {
     "@bolsilludo/budget-engine": "workspace:*",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

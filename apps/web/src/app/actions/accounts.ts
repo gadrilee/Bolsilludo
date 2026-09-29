@@ -2,18 +2,13 @@
 
 import { db, accounts, transactions, categories, categoryGroups } from '@bolsilludo/db';
 import { eq, and } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 import { revalidatePath } from 'next/cache';
 
 // Reserved group name for auto-managed credit card payment categories (BR-CC-001)
 const CC_PAYMENT_GROUP_NAME = 'Pagos de Tarjetas';
 
 export async function createAccount(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) throw new Error("Unauthorized");
-
   const budgetId = formData.get('budgetId') as string;
   const name = formData.get('name') as string;
   const type = formData.get('type') as string; // 'checking', 'savings', 'credit_card', 'cash', 'loan'
@@ -21,6 +16,7 @@ export async function createAccount(formData: FormData) {
   const currency = formData.get('currency') as string || 'BOB';
 
   if (!budgetId || !name || !type) throw new Error("Missing required fields");
+  await requireBudgetRole(budgetId, 'editor');
 
   // Convert from display units (Bs) to minor units (centavos)
   const amountMinor = BigInt(Math.round(Number(balanceStr || '0') * 100));
@@ -87,10 +83,7 @@ export async function createAccount(formData: FormData) {
 }
 
 export async function getAccounts(budgetId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) return [];
+  await requireBudgetRole(budgetId, 'viewer');
 
   return await db
     .select()
@@ -100,5 +93,6 @@ export async function getAccounts(budgetId: string) {
 
 export async function getAccountById(accountId: string) {
   const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+  if (account) await requireBudgetRole(account.budgetId, 'viewer');
   return account ?? null;
 }

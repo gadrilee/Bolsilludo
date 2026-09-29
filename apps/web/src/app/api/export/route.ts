@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, transactions, transactionSplits, accounts, categories } from '@bolsilludo/db';
 import { eq, and } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 
 function escapeCsvCell(cell: string | null | undefined): string {
   if (!cell) return '';
@@ -27,9 +27,7 @@ export async function GET(request: Request) {
     
     if (!budgetId) return NextResponse.json({ error: 'Missing budgetId' }, { status: 400 });
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    await requireBudgetRole(budgetId, 'editor');
 
     const allTxs = await db.select({
       id: transactions.id,

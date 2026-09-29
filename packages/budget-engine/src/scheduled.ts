@@ -10,6 +10,16 @@ export type ScheduledTransactionDef = {
   lastOccurrenceAt?: string | null;
 };
 
+export function advanceOccurrenceCursor(
+  lastOccurrenceAt: string | null | undefined,
+  occurrenceDate: string,
+  occurrencePosted: boolean,
+): string | null {
+  if (!occurrencePosted) return lastOccurrenceAt ?? null;
+  if (!lastOccurrenceAt || occurrenceDate > lastOccurrenceAt) return occurrenceDate;
+  return lastOccurrenceAt;
+}
+
 /**
  * Parses YYYY-MM-DD string to UTC Date at 00:00:00
  */

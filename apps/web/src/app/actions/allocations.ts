@@ -1,15 +1,17 @@
 'use server';
 
-import { db, categoryAllocations } from '@bolsilludo/db';
+import { db, categoryAllocations, categoryGroups, categories } from '@bolsilludo/db';
 import { eq, and } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { requireBudgetRole } from '@/lib/auth/authorization';
 import { revalidatePath } from 'next/cache';
 
 export async function assignMoney(categoryId: string, month: string, amountMinor: bigint) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) throw new Error("Unauthorized");
+  const [category] = await db.select({ budgetId: categoryGroups.budgetId })
+    .from(categories)
+    .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(eq(categories.id, categoryId));
+  if (!category) throw new Error('CATEGORY_NOT_FOUND');
+  await requireBudgetRole(category.budgetId, 'editor');
 
   // Check if an allocation already exists for this category and month
   const existing = await db
@@ -39,14 +41,25 @@ export async function assignMoney(categoryId: string, month: string, amountMinor
 }
 
 export async function getAllocationsForMonth(budgetId: string, month: string) {
-  // To keep MVP simple, we fetch all allocations and filter. 
-  // In a real query we would join with categories to ensure they belong to this budget.
-  const allocations = await db.select().from(categoryAllocations).where(eq(categoryAllocations.month, month));
+  await requireBudgetRole(budgetId, 'viewer');
+  const allocations = await db.select({
+    id: categoryAllocations.id,
+    categoryId: categoryAllocations.categoryId,
+    month: categoryAllocations.month,
+    amountMinor: categoryAllocations.amountMinor,
+  })
+    .from(categoryAllocations)
+    .innerJoin(categories, eq(categoryAllocations.categoryId, categories.id))
+    .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(and(
+      eq(categoryGroups.budgetId, budgetId),
+      eq(categoryAllocations.month, month),
+    ));
   return allocations;
 }
 
 export async function getAllAllocations(budgetId: string) {
-  const { categoryGroups, categories } = await import('@bolsilludo/db');
+  await requireBudgetRole(budgetId, 'viewer');
   return db
     .select({
       id: categoryAllocations.id,

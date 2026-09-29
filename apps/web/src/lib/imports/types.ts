@@ -14,7 +14,7 @@ export interface NormalizedImportTransaction {
   rowIndex: number;
 }
 
-export type ImportDecision = 'NEW' | 'MATCHED' | 'REJECTED' | 'DUPLICATE';
+export type ImportDecision = 'NEW' | 'MATCHED' | 'NEEDS_REVIEW' | 'REJECTED' | 'DUPLICATE';
 
 export interface ImportRowMatch {
   decision: ImportDecision;
