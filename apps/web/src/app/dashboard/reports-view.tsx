@@ -93,9 +93,7 @@ export function ReportsView({ budgetId, canExport }: ReportsViewProps) {
             </div>
           </div>
           
-          <div style={{ padding: '2rem', background: 'var(--glass-bg)', borderRadius: '1rem', border: '1px dashed var(--glass-border)', textAlign: 'center', color: 'var(--text-muted)' }}>
-             (MVP) Transferencias no incluidas en este reporte (BR-RPT-010).
-          </div>
+
         </div>
       )}
 
@@ -166,6 +164,19 @@ export function ReportsView({ budgetId, canExport }: ReportsViewProps) {
               <p style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: cashFlow.netCashFlow >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
                 {cashFlow.netCashFlow >= 0 ? '+' : ''}{cashFlow.netCashFlow.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
               </p>
+            </div>
+          </div>
+          
+          {/* Visualización exclusiva de Flujo de Caja */}
+          <div className="glass" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--glass-border)' }}>
+            <h3 style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '0 0 1rem 0' }}>Proporción de Liquidez</h3>
+            <div style={{ display: 'flex', height: '1.5rem', borderRadius: '1rem', overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
+              <div style={{ width: `${cashFlow.inflows === 0 && cashFlow.outflows === 0 ? 50 : (cashFlow.inflows / (cashFlow.inflows + cashFlow.outflows)) * 100}%`, background: 'var(--primary)', transition: 'width 0.5s' }} />
+              <div style={{ width: `${cashFlow.inflows === 0 && cashFlow.outflows === 0 ? 50 : (cashFlow.outflows / (cashFlow.inflows + cashFlow.outflows)) * 100}%`, background: 'var(--danger)', transition: 'width 0.5s' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              <span>Entradas ({Math.round(cashFlow.inflows === 0 && cashFlow.outflows === 0 ? 0 : (cashFlow.inflows / (cashFlow.inflows + cashFlow.outflows)) * 100)}%)</span>
+              <span>Salidas ({Math.round(cashFlow.inflows === 0 && cashFlow.outflows === 0 ? 0 : (cashFlow.outflows / (cashFlow.inflows + cashFlow.outflows)) * 100)}%)</span>
             </div>
           </div>
         </div>
