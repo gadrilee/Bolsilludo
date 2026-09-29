@@ -25,14 +25,18 @@ export default async function DashboardPage() {
   let groups: Awaited<ReturnType<typeof getCategories>> = [];
   let accounts: Awaited<ReturnType<typeof getAccounts>> = [];
   let transactions: Awaited<ReturnType<typeof getTransactions>> = [];
+  let goals: any[] = [];
   let monthState: ReturnType<typeof calculateMonthState> | null = null;
   const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
   if (activeBudget) {
-    [groups, accounts, transactions] = await Promise.all([
+    const { getGoals } = await import('../actions/goals');
+    
+    [groups, accounts, transactions, goals] = await Promise.all([
       getCategories(activeBudget.id),
       getAccounts(activeBudget.id),
       getTransactions(activeBudget.id),
+      getGoals(activeBudget.id),
     ]);
 
     const allocations = await getAllocationsForMonth(activeBudget.id, currentMonth);
@@ -46,16 +50,29 @@ export default async function DashboardPage() {
     const categoryInputs = groups.flatMap(g =>
       (g.categories ?? []).map(c => {
         const alloc = allocations.find(a => a.categoryId === c.id);
+        const goal = goals.find(go => go.categoryId === c.id);
+        
+        let goalDef = null;
+        if (goal) {
+          goalDef = {
+            ...goal,
+            amountMinor: BigInt(goal.amountMinor),
+            snoozedMonth: goal.snoozedMonth ? goal.snoozedMonth.substring(0, 7) : null
+          };
+        }
+
         return {
           categoryId: c.id,
           previousAvailable: 0n, // MVP: no previous month history
           assigned: alloc ? BigInt(alloc.amountMinor) : 0n,
           activity: 0n, // MVP: split-based activity wired in Spec 04 extension
+          goal: goalDef
         };
       })
     );
 
     monthState = calculateMonthState({
+      month: currentMonth,
       previousRTA: 0n,
       inflowsToRTA,
       categories: categoryInputs,

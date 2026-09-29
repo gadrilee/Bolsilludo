@@ -1,13 +1,16 @@
 import { add, subtract } from '@bolsilludo/money';
+import { type GoalDefinition, type GoalResultDTO, calculateGoalRequirement } from './goals';
 
 export interface CategoryState {
   categoryId: string;
   assigned: bigint;
   activity: bigint;
   available: bigint;
+  goalResult: GoalResultDTO | null;
 }
 
 export interface MonthInput {
+  month: string; // YYYY-MM
   previousRTA: bigint;
   inflowsToRTA: bigint;
   categories: {
@@ -15,6 +18,7 @@ export interface MonthInput {
     previousAvailable: bigint;
     assigned: bigint;
     activity: bigint; // Spending is usually negative
+    goal?: GoalDefinition | null;
   }[];
 }
 
@@ -39,10 +43,6 @@ export function calculateMonthState(input: MonthInput): MonthOutput {
     let available = add(add(catInput.previousAvailable, catInput.assigned), catInput.activity);
 
     // Handle negative rollover (Cash overspending reduces next month's RTA)
-    // For MVP, all negative balances are treated as cash overspending and covered by RTA
-    // in the following month. We subtract it from the *current* month's RTA representation
-    // if we are processing a chain, but strictly speaking, if a previous month ended negative, 
-    // it reduces THIS month's starting RTA.
     if (catInput.previousAvailable < 0n) {
       overspentFromPreviousMonth = add(overspentFromPreviousMonth, catInput.previousAvailable);
       // Reset the negative carryover so it doesn't double-penalize the category itself
@@ -52,11 +52,23 @@ export function calculateMonthState(input: MonthInput): MonthOutput {
     // I5: RTA = total_cash - assigned
     rta = subtract(rta, catInput.assigned);
 
+    // Calculate goal
+    let goalResult: GoalResultDTO | null = null;
+    if (catInput.goal) {
+      goalResult = calculateGoalRequirement(
+        catInput.goal,
+        input.month,
+        catInput.assigned,
+        catInput.previousAvailable
+      );
+    }
+
     categories.push({
       categoryId: catInput.categoryId,
       assigned: catInput.assigned,
       activity: catInput.activity,
       available,
+      goalResult,
     });
   }
 

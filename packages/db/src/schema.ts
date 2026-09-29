@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, char, integer, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, char, integer, bigint, boolean, date, smallint } from "drizzle-orm/pg-core";
 
 // 1. Core Identity
 export const workspaces = pgTable("workspaces", {
@@ -96,4 +96,25 @@ export const categoryAllocations = pgTable("category_allocations", {
   amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 8. Goals (Spec 06)
+export const goals = pgTable("goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }).notNull(),
+  categoryId: uuid("category_id").references(() => categories.id).notNull(),
+  cadence: text("cadence").notNull(), // 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM'
+  behavior: text("behavior").notNull(), // 'SET_ASIDE', 'REFILL_UP_TO', 'HAVE_A_BALANCE'
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  startDate: date("start_date"),
+  dueDate: date("due_date"),
+  repeatEnabled: boolean("repeat_enabled").notNull().default(false),
+  repeatInterval: integer("repeat_interval"),
+  repeatUnit: text("repeat_unit"), // 'WEEK', 'MONTH', 'YEAR'
+  weekStartDay: smallint("week_start_day"), // 0-6
+  snoozedMonth: date("snoozed_month"), // only 1st of month
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  version: integer("version").notNull().default(1),
 });

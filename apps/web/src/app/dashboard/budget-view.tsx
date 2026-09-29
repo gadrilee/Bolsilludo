@@ -5,10 +5,11 @@ import { createCategoryGroup, createCategory } from '../actions/categories';
 import { assignMoney } from '../actions/allocations';
 import { CreateAccountForm } from './create-account-form';
 import { LedgerView } from './ledger-view';
+import { GoalSheet } from './goal-sheet';
 
 type Category = { id: string; name: string; groupId: string; sortOrder: number; isHidden: number; icon: string | null; createdAt: Date };
 type Group = { id: string; name: string; budgetId: string; sortOrder: number; isHidden: number; createdAt: Date; categories: Category[] };
-type CategoryState = { categoryId: string; assigned: bigint; activity: bigint; available: bigint };
+type CategoryState = { categoryId: string; assigned: bigint; activity: bigint; available: bigint; goalResult?: any };
 type MonthState = { rta: bigint; overspentFromPreviousMonth: bigint; categories: CategoryState[] };
 
 type BudgetViewProps = {
@@ -27,6 +28,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'budget' | 'ledger'>('budget');
+  const [selectedCategoryGoal, setSelectedCategoryGoal] = useState<{ id: string, name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function handleAddGroup(e: React.FormEvent) {
@@ -215,7 +217,28 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                           key={cat.id}
                           style={{ padding: '0.6rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
                         >
-                          <span style={{ fontSize: '0.9rem', color: 'var(--text)' }}>{cat.name}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <button
+                              onClick={() => setSelectedCategoryGoal({ id: cat.id, name: cat.name })}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--text)', textAlign: 'left', cursor: 'pointer', padding: 0, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                            >
+                              {cat.name}
+                              {catState?.goalResult && (
+                                <span style={{ 
+                                  display: 'inline-block', 
+                                  width: '8px', height: '8px', 
+                                  borderRadius: '50%', 
+                                  background: catState.goalResult.status === 'FUNDED' ? 'var(--primary)' : catState.goalResult.status === 'SNOOZED' ? '#f59e0b' : 'var(--danger)' 
+                                }} title={catState.goalResult.status} />
+                              )}
+                            </button>
+                            {catState?.goalResult && catState.goalResult.status !== 'SNOOZED' && (
+                              <div style={{ width: '100px', height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden', display: 'flex' }}>
+                                <div style={{ flex: catState.goalResult.progressParts.currentAssigned, background: 'var(--primary)' }} />
+                                <div style={{ flex: catState.goalResult.progressParts.needed, background: 'transparent' }} />
+                              </div>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', alignItems: 'center' }}>
                             {/* Assigned input */}
                             <div style={{ width: '100px', textAlign: 'right' }}>
@@ -298,6 +321,17 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
 
       {showAccountModal && (
         <CreateAccountForm budgetId={budgetId} onClose={() => setShowAccountModal(false)} />
+      )}
+
+      {selectedCategoryGoal && (
+        <GoalSheet
+          budgetId={budgetId}
+          categoryId={selectedCategoryGoal.id}
+          categoryName={selectedCategoryGoal.name}
+          existingGoal={monthState?.categories.find(c => c.categoryId === selectedCategoryGoal.id) as any}
+          currentMonth={currentMonth ?? ''}
+          onClose={() => setSelectedCategoryGoal(null)}
+        />
       )}
     </div>
   );
