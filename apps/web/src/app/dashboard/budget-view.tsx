@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useOptimistic } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createCategoryGroup, createCategory } from '../actions/categories';
 import { assignMoney } from '../actions/allocations';
 import { CreateAccountForm } from './create-account-form';
@@ -40,6 +41,20 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
   const [activeTab, setActiveTab] = useState<'budget' | 'ledger' | 'reports' | 'members'>('budget');
   const [selectedCategoryGoal, setSelectedCategoryGoal] = useState<{ id: string, name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  function changeMonth(offset: number) {
+    if (!currentMonth) return;
+    const [year, month] = currentMonth.split('-').map(Number);
+    const date = new Date(year, month - 1 + offset, 1);
+    const newMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', newMonth);
+    params.set('budgetId', budgetId);
+    router.push(`/dashboard?${params.toString()}`);
+  }
 
   async function handleAddGroup(e: React.FormEvent) {
     e.preventDefault();
@@ -194,8 +209,24 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                   {rtaMinor > 0 ? 'Asigna todos tus ingresos hasta llegar a cero.' : rtaMinor < 0 ? '¡Sobregiro! Cubre el déficit en tus categorías.' : '¡Perfecto! Todo está asignado.'}
                 </p>
               </div>
-              <div style={{ textAlign: 'right', opacity: 0.8 }}>
-                <p style={{ fontSize: '0.75rem' }}>{currentMonth}</p>
+              <div style={{ textAlign: 'right', opacity: 0.8, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button 
+                  onClick={() => changeMonth(-1)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '2rem', height: '2rem', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  &lt;
+                </button>
+                <div style={{ minWidth: '120px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                    {currentMonth ? new Date(currentMonth + '-02').toLocaleDateString('es-BO', { month: 'long', year: 'numeric' }) : ''}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => changeMonth(1)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '2rem', height: '2rem', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  &gt;
+                </button>
               </div>
             </div>
 

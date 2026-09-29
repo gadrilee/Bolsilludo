@@ -44,3 +44,18 @@ export async function getAllocationsForMonth(budgetId: string, month: string) {
   const allocations = await db.select().from(categoryAllocations).where(eq(categoryAllocations.month, month));
   return allocations;
 }
+
+export async function getAllAllocations(budgetId: string) {
+  const { categoryGroups, categories } = await import('@bolsilludo/db');
+  return db
+    .select({
+      id: categoryAllocations.id,
+      categoryId: categoryAllocations.categoryId,
+      month: categoryAllocations.month,
+      amountMinor: categoryAllocations.amountMinor,
+    })
+    .from(categoryAllocations)
+    .innerJoin(categories, eq(categoryAllocations.categoryId, categories.id))
+    .innerJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(eq(categoryGroups.budgetId, budgetId));
+}

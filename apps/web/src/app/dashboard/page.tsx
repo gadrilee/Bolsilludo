@@ -13,7 +13,15 @@ import { getPendingImportBatch } from '../actions/imports';
 import { getScheduledTransactions } from '../actions/scheduled';
 import { getMembers, getInvitations } from '../actions/collaboration';
 
-export default async function DashboardPage() {
+type DashboardProps = {
+  searchParams: Promise<{ month?: string, budgetId?: string }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardProps) {
+  const resolvedParams = await searchParams;
+  const urlMonth = resolvedParams.month;
+  const urlBudgetId = resolvedParams.budgetId;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -23,7 +31,9 @@ export default async function DashboardPage() {
 
   // Fetch user budgets
   const budgets = await getBudgets();
-  const activeBudget = budgets.length > 0 ? budgets[0] : null;
+  const activeBudget = urlBudgetId 
+    ? budgets.find(b => b.id === urlBudgetId) || (budgets.length > 0 ? budgets[0] : null)
+    : (budgets.length > 0 ? budgets[0] : null);
 
   // If active budget, fetch its data
   let groups: Awaited<ReturnType<typeof getCategories>> = [];
@@ -36,7 +46,9 @@ export default async function DashboardPage() {
   let scheduled: Awaited<ReturnType<typeof getScheduledTransactions>> = [];
   let members: any[] = [];
   let invitations: any[] = [];
-  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+  
+  // Use URL month or current month
+  const currentMonth = urlMonth && /^\d{4}-\d{2}$/.test(urlMonth) ? urlMonth : new Date().toISOString().slice(0, 7);
 
   if (activeBudget) {
     const { getGoals } = await import('../actions/goals');
@@ -53,44 +65,82 @@ export default async function DashboardPage() {
     // Admin or higher can fetch invitations, catch and default to empty array if user is viewer
     invitations = await getInvitations(activeBudget.id).catch(() => []);
 
-    const allocations = await getAllocationsForMonth(activeBudget.id, currentMonth);
+    const { getAllAllocations } = await import('../actions/allocations');
+    const allocations = await getAllAllocations(activeBudget.id);
 
-    // All positive transactions are inflows to RTA (MVP: no split-based categorization yet)
-    const inflowsToRTA = transactions
-      .filter(tx => Number(tx.amountMinor) > 0)
-      .reduce((acc, tx) => acc + BigInt(tx.amountMinor), 0n);
+    // Group transactions by month
+    const txByMonth = transactions.reduce((acc, tx) => {
+      const m = new Date(tx.date).toISOString().slice(0, 7);
+      if (!acc[m]) acc[m] = [];
+      acc[m].push(tx);
+      return acc;
+    }, {} as Record<string, typeof transactions>);
 
-    // Build per-category inputs from the nested structure returned by getCategories
-    const categoryInputs = groups.flatMap(g =>
-      (g.categories ?? []).map(c => {
-        const alloc = allocations.find(a => a.categoryId === c.id);
-        const goal = goals.find(go => go.categoryId === c.id);
-        
-        let goalDef = null;
-        if (goal) {
-          goalDef = {
-            ...goal,
-            amountMinor: BigInt(goal.amountMinor),
-            snoozedMonth: goal.snoozedMonth ? goal.snoozedMonth.substring(0, 7) : null
+    // Group allocations by month
+    const allocByMonth = allocations.reduce((acc, al) => {
+      if (!acc[al.month]) acc[al.month] = [];
+      acc[al.month].push(al);
+      return acc;
+    }, {} as Record<string, typeof allocations>);
+
+    // Determine all months to process (from earliest up to currentMonth)
+    const allMonthsSet = new Set([...Object.keys(txByMonth), ...Object.keys(allocByMonth), currentMonth]);
+    const sortedMonths = Array.from(allMonthsSet).sort();
+    const processMonths = sortedMonths.filter(m => m <= currentMonth);
+
+    let lastRTA = 0n;
+    let lastCategoriesState: Record<string, { available: bigint }> = {};
+
+    for (const m of processMonths) {
+      const mTx = txByMonth[m] || [];
+      const mAlloc = allocByMonth[m] || [];
+
+      const inflowsToRTA = mTx
+        .filter(tx => Number(tx.amountMinor) > 0)
+        .reduce((acc, tx) => acc + BigInt(tx.amountMinor), 0n);
+
+      const categoryInputs = groups.flatMap(g =>
+        (g.categories ?? []).map(c => {
+          const alloc = mAlloc.find(a => a.categoryId === c.id);
+          const goal = goals.find(go => go.categoryId === c.id);
+          
+          let goalDef = null;
+          if (goal) {
+            goalDef = {
+              ...goal,
+              amountMinor: BigInt(goal.amountMinor),
+              snoozedMonth: goal.snoozedMonth ? goal.snoozedMonth.substring(0, 7) : null
+            };
+          }
+
+          // MVP: negative transactions in this month for this category
+          // Wait, we don't have transactionSplits categorization yet, but if we did:
+          // Activity is usually negative. For now, it's 0 since we haven't linked tx to categories.
+          const activity = 0n;
+
+          return {
+            categoryId: c.id,
+            previousAvailable: lastCategoriesState[c.id]?.available || 0n,
+            assigned: alloc ? BigInt(alloc.amountMinor) : 0n,
+            activity,
+            goal: goalDef
           };
-        }
+        })
+      );
 
-        return {
-          categoryId: c.id,
-          previousAvailable: 0n, // MVP: no previous month history
-          assigned: alloc ? BigInt(alloc.amountMinor) : 0n,
-          activity: 0n, // MVP: split-based activity wired in Spec 04 extension
-          goal: goalDef
-        };
-      })
-    );
+      monthState = calculateMonthState({
+        month: m,
+        previousRTA: lastRTA,
+        inflowsToRTA,
+        categories: categoryInputs,
+      });
 
-    monthState = calculateMonthState({
-      month: currentMonth,
-      previousRTA: 0n,
-      inflowsToRTA,
-      categories: categoryInputs,
-    });
+      lastRTA = monthState.rta;
+      lastCategoriesState = monthState.categories.reduce((acc, cat) => {
+        acc[cat.categoryId] = { available: cat.available };
+        return acc;
+      }, {} as typeof lastCategoriesState);
+    }
 
     // Compute CreditCardStatusDTO for each credit card account (BR-CC-070: no UI calc)
     const cardAccounts = accounts.filter(a => a.type === 'credit_card');
@@ -125,10 +175,50 @@ export default async function DashboardPage() {
         fontFamily: 'var(--font-sans)',
       }}
     >
-      <header style={{ width: '100%', maxWidth: '1200px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>Bolsilludo</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {name}</p>
+      <header style={{ width: '100%', maxWidth: '1280px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>Bolsilludo</h1>
+            <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {name}</p>
+          </div>
+          
+          {budgets.length > 0 && activeBudget && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <form action={async (formData) => {
+                'use server';
+                const { redirect } = await import('next/navigation');
+                const selectedId = formData.get('budgetId');
+                if (selectedId) redirect(`/dashboard?budgetId=${selectedId}&month=${currentMonth}`);
+              }}>
+                <select 
+                  name="budgetId" 
+                  defaultValue={activeBudget.id} 
+                  onChange={(e) => e.target.form?.requestSubmit()}
+                  style={{
+                    padding: '0.5rem 2rem 0.5rem 1rem',
+                    background: 'var(--glass-bg)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '0.5rem',
+                    color: 'var(--text)',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    appearance: 'none',
+                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundSize: '1rem'
+                  }}
+                >
+                  {budgets.map(b => (
+                    <option key={b.id} value={b.id} style={{ color: '#000' }}>
+                      {b.name} ({b.role})
+                    </option>
+                  ))}
+                </select>
+              </form>
+            </div>
+          )}
         </div>
 
         <form
