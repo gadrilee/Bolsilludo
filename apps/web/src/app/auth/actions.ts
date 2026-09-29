@@ -33,7 +33,7 @@ const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: z.string().max(80).optional(),
-  acceptTerms: z.literal('on', { errorMap: () => ({ message: 'Debes aceptar los términos.' }) }),
+  acceptTerms: z.literal('on', { error: () => ({ message: 'Debes aceptar los términos.' }) }),
 });
 
 export type AuthState = {
