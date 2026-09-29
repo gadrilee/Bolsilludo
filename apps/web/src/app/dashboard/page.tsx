@@ -12,6 +12,7 @@ import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 import { getPendingImportBatch } from '../actions/imports';
 import { getScheduledTransactions } from '../actions/scheduled';
 import { getMembers, getInvitations } from '../actions/collaboration';
+import { BudgetSelector } from './budget-selector';
 
 type DashboardProps = {
   searchParams: Promise<{ month?: string, budgetId?: string }>;
@@ -183,41 +184,11 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </div>
           
           {budgets.length > 0 && activeBudget && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <form action={async (formData) => {
-                'use server';
-                const { redirect } = await import('next/navigation');
-                const selectedId = formData.get('budgetId');
-                if (selectedId) redirect(`/dashboard?budgetId=${selectedId}&month=${currentMonth}`);
-              }}>
-                <select 
-                  name="budgetId" 
-                  defaultValue={activeBudget.id} 
-                  onChange={(e) => e.target.form?.requestSubmit()}
-                  style={{
-                    padding: '0.5rem 2rem 0.5rem 1rem',
-                    background: 'var(--glass-bg)',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '0.5rem',
-                    color: 'var(--text)',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    appearance: 'none',
-                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundSize: '1rem'
-                  }}
-                >
-                  {budgets.map(b => (
-                    <option key={b.id} value={b.id} style={{ color: '#000' }}>
-                      {b.name} ({b.role})
-                    </option>
-                  ))}
-                </select>
-              </form>
-            </div>
+            <BudgetSelector 
+              budgets={budgets.map(b => ({ id: b.id, name: b.name, role: b.role }))} 
+              activeBudgetId={activeBudget.id} 
+              currentMonth={currentMonth} 
+            />
           )}
         </div>
 
