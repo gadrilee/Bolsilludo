@@ -1,6 +1,6 @@
 // budget-engine/src/goals.ts
 
-export type Money = bigint;
+type Money = bigint;
 
 export type GoalDefinition = {
   id: string;

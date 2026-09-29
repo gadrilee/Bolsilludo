@@ -2,7 +2,7 @@
 // Pure functions for credit card mechanics — BR-CC-010 through BR-CC-060
 // BR-CC-070: NO UI calculations; this module is the sole source of truth.
 
-export type Money = bigint;
+type Money = bigint;
 
 export type CreditCardStatus =
   | 'FUNDED'
