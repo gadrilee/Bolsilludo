@@ -4,6 +4,7 @@ import { db, budgetMembers, budgetInvitations, auditEvents } from '@bolsilludo/d
 import { eq, and, gt } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
+import { revalidatePath } from 'next/cache';
 
 // T12.2: requireMember en dominio
 export async function checkRole(budgetId: string, minRole: 'owner' | 'admin' | 'editor' | 'viewer') {
@@ -58,7 +59,8 @@ export async function inviteMember(budgetId: string, email: string, role: string
 
   // Emulate sending email (in a real app, send actual email with token)
   console.log(`Email sent to ${email} with token: ${token}`);
-  return { success: true, message: 'Invitation sent' };
+  revalidatePath('/dashboard');
+  return { success: true, message: 'Invitation sent', token };
 }
 
 export async function acceptInvitation(token: string) {
@@ -104,6 +106,7 @@ export async function acceptInvitation(token: string) {
     });
   });
 
+  revalidatePath('/dashboard');
   return { success: true, budgetId: invitation.budgetId };
 }
 
@@ -133,6 +136,7 @@ export async function changeMemberRole(budgetId: string, targetUserId: string, n
     details: JSON.stringify({ oldRole: targetMember.role, newRole })
   });
 
+  revalidatePath('/dashboard');
   return { success: true };
 }
 
@@ -158,6 +162,7 @@ export async function removeMember(budgetId: string, targetUserId: string) {
     action: 'removed',
   });
 
+  revalidatePath('/dashboard');
   return { success: true };
 }
 
@@ -226,6 +231,7 @@ export async function transferOwnership(budgetId: string, targetUserId: string) 
     });
   });
 
+  revalidatePath('/dashboard');
   return { success: true };
 }
 
@@ -246,6 +252,7 @@ export async function revokeInvitation(invitationId: string) {
     details: JSON.stringify({ email: invitation.email })
   });
 
+  revalidatePath('/dashboard');
   return { success: true };
 }
 

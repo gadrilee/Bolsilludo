@@ -62,7 +62,12 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
     return { error: 'Correo o contraseña incorrectos.' };
   }
 
+  const nextUrl = formData.get('nextUrl') as string | null;
+
   revalidatePath('/', 'layout');
+  if (nextUrl) {
+    redirect(nextUrl);
+  }
   redirect('/dashboard');
 }
 

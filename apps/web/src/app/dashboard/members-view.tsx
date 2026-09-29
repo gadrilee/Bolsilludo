@@ -16,6 +16,8 @@ export function MembersView({ budgetId, members, invitations, userId }: MembersV
   const [inviteRole, setInviteRole] = useState('editor');
   const [error, setError] = useState<string | null>(null);
   
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+
   const currentUserMember = members.find(m => m.userId === userId);
   const userRole = currentUserMember?.role || 'viewer';
   const isAdmin = userRole === 'owner' || userRole === 'admin';
@@ -28,7 +30,11 @@ export function MembersView({ budgetId, members, invitations, userId }: MembersV
     startTransition(async () => {
       try {
         setError(null);
-        await inviteMember(budgetId, inviteEmail, inviteRole);
+        setInviteLink(null);
+        const res = await inviteMember(budgetId, inviteEmail, inviteRole);
+        if (res.token) {
+          setInviteLink(`${window.location.origin}/invite/${res.token}`);
+        }
         setInviteEmail('');
       } catch (err: any) {
         setError(err.message || 'Error al invitar miembro');
@@ -233,6 +239,17 @@ export function MembersView({ budgetId, members, invitations, userId }: MembersV
                 {isPending ? 'Enviando...' : 'Invitar'}
               </button>
             </form>
+            
+            {inviteLink && (
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '0.5rem' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 600 }}>Invitación generada exitosamente.</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Copia este enlace y envíalo al usuario (en producción esto se enviaría por correo electrónico):</p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input type="text" readOnly value={inviteLink} style={{ flex: 1, padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.25rem', fontSize: '0.875rem' }} />
+                  <button onClick={() => navigator.clipboard.writeText(inviteLink)} style={{ padding: '0.5rem 1rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.875rem' }}>Copiar</button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
