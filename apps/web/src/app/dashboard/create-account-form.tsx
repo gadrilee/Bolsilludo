@@ -40,8 +40,7 @@ export function CreateAccountForm({ budgetId, onClose }: { budgetId: string; onC
       background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
     }}>
-      <div style={{
-        background: 'var(--bg)', border: '1px solid var(--glass-border)',
+      <div className="glass" style={{
         padding: '2rem', borderRadius: '1rem', width: '100%', maxWidth: '440px',
         boxShadow: '0 24px 64px rgba(0,0,0,0.5)'
       }}>
@@ -61,7 +60,8 @@ export function CreateAccountForm({ budgetId, onClose }: { budgetId: string; onC
               name="name"
               required
               placeholder="Ej. Visa Gold / Banco Mercantil"
-              style={{ width: '100%', padding: '0.75rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', boxSizing: 'border-box' }}
+              className="glass"
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', color: 'var(--text)', boxSizing: 'border-box' }}
             />
           </div>
 
@@ -116,7 +116,8 @@ export function CreateAccountForm({ budgetId, onClose }: { budgetId: string; onC
               type="number"
               step="0.01"
               defaultValue="0"
-              style={{ width: '100%', padding: '0.75rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', boxSizing: 'border-box' }}
+              className="glass"
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', color: 'var(--text)', boxSizing: 'border-box' }}
             />
             {isCreditCard && (
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>

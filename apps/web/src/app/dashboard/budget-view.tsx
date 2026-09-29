@@ -82,7 +82,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
       {/* Sidebar: Accounts */}
       <aside style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Regular Accounts */}
-        <div style={{ padding: '1.5rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem' }}>
+        <div className="glass" style={{ padding: '1.5rem', borderRadius: '1rem' }}>
           <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Cuentas
           </h2>
@@ -175,21 +175,22 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
         {activeTab === 'budget' ? (
           <>
             {/* Ready to Assign Banner */}
-            <div style={{
-              background: rtaMinor >= 0 ? 'var(--primary)' : 'var(--danger)',
-              color: 'var(--bg)',
+            <div className="glass" style={{
+              background: rtaMinor >= 0 ? 'rgba(22, 183, 140, 0.25)' : 'rgba(239, 68, 68, 0.25)',
+              borderColor: rtaMinor >= 0 ? 'rgba(22, 183, 140, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+              color: 'var(--text)',
               borderRadius: '1rem',
               padding: '1.5rem 2rem',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              boxShadow: rtaMinor >= 0 ? '0 4px 24px rgba(16,185,129,0.25)' : '0 4px 24px rgba(239,68,68,0.25)',
+              boxShadow: rtaMinor >= 0 ? '0 4px 32px rgba(22, 183, 140, 0.15)' : '0 4px 32px rgba(239, 68, 68, 0.15)',
             }}>
               <div>
                 <p style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.85, marginBottom: '0.25rem' }}>
                   Listo para Asignar
                 </p>
-                <h2 style={{ fontSize: '2.5rem', fontWeight: 800, margin: 0 }}>
+                <h2 style={{ fontSize: '2.5rem', fontWeight: 800, margin: 0, color: rtaMinor >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
                   Bs {rtaDisplay}
                 </h2>
                 <p style={{ fontSize: '0.8rem', opacity: 0.75, marginTop: '0.25rem' }}>
@@ -202,7 +203,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
             </div>
 
             {/* Category Groups */}
-            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', overflow: 'hidden' }}>
+            <div className="glass" style={{ borderRadius: '1rem', overflow: 'hidden' }}>
 
               {/* Header row */}
               <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -213,9 +214,10 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                     placeholder="Nuevo grupo..."
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
-                    style={{ padding: '0.4rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
+                    className="glass"
+                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
                   />
-                  <button type="submit" style={{ padding: '0.4rem 0.75rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--text)', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                  <button type="submit" className="glass" style={{ padding: '0.4rem 0.75rem', color: 'var(--text)', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                     + Grupo
                   </button>
                 </form>
@@ -292,12 +294,11 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                                     startTransition(() => { assignMoney(cat.id, currentMonth, BigInt(val)); });
                                   }
                                 }}
+                                className="glass"
                                 style={{
                                   width: '90px',
                                   textAlign: 'right',
                                   padding: '0.3rem 0.4rem',
-                                  background: 'var(--bg)',
-                                  border: '1px solid var(--glass-border)',
                                   color: 'var(--text)',
                                   borderRadius: '0.3rem',
                                   fontSize: '0.875rem',

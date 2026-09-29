@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { createTransaction } from '../actions/transactions';
+import { GlassSelect } from './glass-select';
 
 import { ImportWizard } from './import-wizard';
 import { ScheduledModal } from './scheduled-modal';
@@ -95,16 +96,14 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
             </button>
           </div>
         </div>
-        <form id="tx-form" action={handleAddTransaction} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr 1fr 120px auto', gap: '0.5rem', alignItems: 'center' }}>
+        <form id="tx-form" action={handleAddTransaction} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 120px auto', gap: '0.5rem', alignItems: 'center' }}>
 
-          <select
+          <GlassSelect
             name="accountId"
             required
-            style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
-          >
-            <option value="">Cuenta...</option>
-            {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-          </select>
+            placeholder="Cuenta..."
+            options={accounts.map(acc => ({ value: acc.id, label: acc.name }))}
+          />
 
           <input
             id="tx-date"
@@ -112,23 +111,26 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
             name="date"
             required
             defaultValue={new Date().toISOString().split('T')[0]}
-            style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
+            className="glass"
+            style={{ padding: '0.5rem', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
           />
 
           <input
             type="text"
             name="payeeName"
             placeholder="Beneficiario"
-            style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
+            className="glass"
+            style={{ padding: '0.5rem', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
           />
 
-          <select
+          <GlassSelect
             name="categoryId"
-            style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem' }}
-          >
-            <option value="">Sin categoría (RTA)</option>
-            {allCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+            placeholder="Sin categoría (RTA)"
+            options={[
+              { value: '', label: 'Sin categoría (RTA)' },
+              ...allCategories.map(c => ({ value: c.id, label: c.name }))
+            ]}
+          />
 
           <input
             type="number"
@@ -136,7 +138,8 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
             placeholder="Monto (Bs)"
             step="0.01"
             required
-            style={{ padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem', textAlign: 'right' }}
+            className="glass"
+            style={{ padding: '0.5rem', borderRadius: '0.5rem', color: 'var(--text)', fontSize: '0.875rem', textAlign: 'right' }}
           />
 
           <button
@@ -240,10 +243,17 @@ export function LedgerView({ budgetId, accounts, transactions, groups = [], pend
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
           <div style={{ background: 'var(--bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem', padding: '2rem', width: '100%', maxWidth: '400px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>Seleccionar Cuenta para Importar</h3>
+            <GlassSelect
+              name="importAccountId"
+              placeholder="Seleccionar Cuenta"
+              options={accounts.map(acc => ({ value: acc.id, label: acc.name }))}
+            />
+            {/* The GlassSelect is uncontrolled with name, so we'll need to listen or just fallback to native select here if state is required */}
             <select
               value={importAccountId}
               onChange={e => setImportAccountId(e.target.value)}
-              style={{ width: '100%', padding: '0.75rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.5rem', color: 'var(--text)', marginBottom: '1rem' }}
+              className="glass"
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', color: 'var(--text)', marginBottom: '1rem', marginTop: '1rem' }}
             >
               {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
             </select>

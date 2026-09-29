@@ -21,12 +21,10 @@ export function CreateBudgetForm() {
 
   return (
     <div
+      className="glass"
       style={{
         padding: '2.5rem 3rem',
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
         borderRadius: '1.25rem',
-        backdropFilter: 'blur(var(--glass-blur))',
         maxWidth: '400px',
         width: '100%',
         textAlign: 'center'
@@ -45,10 +43,9 @@ export function CreateBudgetForm() {
           name="name"
           placeholder="Ej: Presupuesto Familiar"
           required
+          className="glass"
           style={{
             padding: '0.75rem 1rem',
-            background: 'var(--bg)',
-            border: '1px solid var(--glass-border)',
             borderRadius: '0.5rem',
             color: 'var(--text)',
             fontSize: '1rem'
