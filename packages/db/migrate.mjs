@@ -3,38 +3,24 @@ import postgres from 'postgres';
 const sql = postgres('postgresql://postgres.niynkiswjetejtyebrkg:2m2QAXySHQEwz27R@aws-0-us-west-2.pooler.supabase.com:6543/postgres', { max: 1 });
 
 async function run() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS "goals" (
-      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-      "budget_id" uuid NOT NULL,
-      "category_id" uuid NOT NULL,
-      "cadence" text NOT NULL,
-      "behavior" text NOT NULL,
-      "amount_minor" bigint NOT NULL,
-      "start_date" date,
-      "due_date" date,
-      "repeat_enabled" boolean DEFAULT false NOT NULL,
-      "repeat_interval" integer,
-      "repeat_unit" text,
-      "week_start_day" smallint,
-      "snoozed_month" date,
-      "archived_at" timestamp with time zone,
-      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
-      "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-      "version" integer DEFAULT 1 NOT NULL
-    );
-  `;
+  // Migration 0003_flaky_blink.sql
+  await sql`ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "opening_balance" bigint`;
+  
+  await sql`ALTER TABLE "categories" ADD COLUMN IF NOT EXISTS "linked_account_id" uuid`;
+  
+  await sql`ALTER TABLE "categories" ADD COLUMN IF NOT EXISTS "is_credit_card_payment" integer DEFAULT 0 NOT NULL`;
   
   await sql`
-    ALTER TABLE "goals" ADD CONSTRAINT "goals_budget_id_budgets_id_fk" FOREIGN KEY ("budget_id") REFERENCES "public"."budgets"("id") ON DELETE cascade ON UPDATE no action;
-  `.catch(e => console.log('Constraint already exists or error:', e.message));
+    ALTER TABLE "categories" 
+    ADD CONSTRAINT "categories_linked_account_id_accounts_id_fk" 
+    FOREIGN KEY ("linked_account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action
+  `.catch(e => console.log('Constraint may already exist:', e.message));
 
-  await sql`
-    ALTER TABLE "goals" ADD CONSTRAINT "goals_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE no action ON UPDATE no action;
-  `.catch(e => console.log('Constraint already exists or error:', e.message));
-
-  console.log('Done');
+  console.log('Migration 0003 applied successfully');
   process.exit(0);
 }
 
-run().catch(console.error);
+run().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -3,11 +3,12 @@ import { redirect } from 'next/navigation';
 import { getBudgets } from '../actions/budgets';
 import { getCategories } from '../actions/categories';
 import { getAccounts } from '../actions/accounts';
-import { getTransactions } from '../actions/transactions';
+import { getTransactions, getCreditCardStatus } from '../actions/transactions';
 import { getAllocationsForMonth } from '../actions/allocations';
 import { CreateBudgetForm } from './create-budget-form';
 import { BudgetView } from './budget-view';
 import { calculateMonthState } from '@bolsilludo/budget-engine';
+import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -27,6 +28,7 @@ export default async function DashboardPage() {
   let transactions: Awaited<ReturnType<typeof getTransactions>> = [];
   let goals: any[] = [];
   let monthState: ReturnType<typeof calculateMonthState> | null = null;
+  let ccStatuses: Record<string, CreditCardStatusDTO> = {};
   const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
   if (activeBudget) {
@@ -77,6 +79,15 @@ export default async function DashboardPage() {
       inflowsToRTA,
       categories: categoryInputs,
     });
+
+    // Compute CreditCardStatusDTO for each credit card account (BR-CC-070: no UI calc)
+    const cardAccounts = accounts.filter(a => a.type === 'credit_card');
+    const ccStatusResults = await Promise.all(
+      cardAccounts.map(a => getCreditCardStatus(a.id, currentMonth, activeBudget.id))
+    );
+    ccStatuses = Object.fromEntries(
+      cardAccounts.map((a, i) => [a.id, ccStatusResults[i]]).filter(([, v]) => v !== null) as [string, CreditCardStatusDTO][]
+    );
   }
 
   return (
@@ -140,6 +151,7 @@ export default async function DashboardPage() {
           transactions={transactions}
           monthState={monthState}
           currentMonth={currentMonth}
+          ccStatuses={ccStatuses}
         />
       )}
     </main>

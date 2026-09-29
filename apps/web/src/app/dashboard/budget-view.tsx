@@ -6,6 +6,8 @@ import { assignMoney } from '../actions/allocations';
 import { CreateAccountForm } from './create-account-form';
 import { LedgerView } from './ledger-view';
 import { GoalSheet } from './goal-sheet';
+import { CreditCardCard } from './credit-card-card';
+import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 
 type Category = { id: string; name: string; groupId: string; sortOrder: number; isHidden: number; icon: string | null; createdAt: Date };
 type Group = { id: string; name: string; budgetId: string; sortOrder: number; isHidden: number; createdAt: Date; categories: Category[] };
@@ -20,9 +22,10 @@ type BudgetViewProps = {
   transactions: any[];
   monthState?: MonthState | null;
   currentMonth?: string;
+  ccStatuses?: Record<string, CreditCardStatusDTO>;
 };
 
-export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth }: BudgetViewProps) {
+export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth, ccStatuses = {} }: BudgetViewProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [addingCategoryToGroup, setAddingCategoryToGroup] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -50,7 +53,10 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
   const rtaDisplay = (rtaMinor / 100).toFixed(2);
   const rtaColor = rtaMinor > 0 ? 'var(--primary)' : rtaMinor < 0 ? 'var(--danger)' : 'var(--text)';
 
-  // Total balance across all accounts
+  // Total balance across all accounts (only non-credit accounts for net worth)
+  const regularAccounts = accounts.filter(a => a.type !== 'credit_card');
+  const creditCardAccounts = accounts.filter(a => a.type === 'credit_card');
+  
   const totalBalance = accounts.reduce((sum, acc) => {
     const accBalance = transactions
       .filter(tx => tx.accountId === acc.id)
@@ -58,29 +64,36 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
     return sum + accBalance;
   }, 0);
 
+  // Net worth = assets + liabilities (cards are negative)
+  const netWorth = totalBalance;
+
   return (
     <div style={{ width: '100%', maxWidth: '1280px', display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
 
       {/* Sidebar: Accounts */}
       <aside style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Regular Accounts */}
         <div style={{ padding: '1.5rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '1rem' }}>
           <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Cuentas
           </h2>
 
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {accounts.length === 0 ? (
+            {regularAccounts.length === 0 ? (
               <li style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>
                 Sin cuentas aún.
               </li>
             ) : (
-              accounts.map(acc => {
+              regularAccounts.map(acc => {
                 const accBalance = transactions
                   .filter(tx => tx.accountId === acc.id)
                   .reduce((sum, tx) => sum + Number(tx.amountMinor), 0);
                 return (
                   <li key={acc.id} style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0' }}>
-                    <span style={{ color: 'var(--text)' }}>{acc.name}</span>
+                    <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {acc.type === 'checking' ? '🏦' : acc.type === 'savings' ? '💰' : acc.type === 'loan' ? '📋' : '💵'}
+                      {acc.name}
+                    </span>
                     <span style={{ fontWeight: 600, color: accBalance >= 0 ? 'var(--text)' : 'var(--danger)' }}>
                       {(accBalance / 100).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
                     </span>
@@ -92,8 +105,8 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
 
           <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
             <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Total</span>
-            <span style={{ fontWeight: 700, color: totalBalance >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
-              {(totalBalance / 100).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+            <span style={{ fontWeight: 700, color: netWorth >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+              {(netWorth / 100).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
             </span>
           </div>
 
@@ -104,6 +117,24 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
             + Añadir Cuenta
           </button>
         </div>
+
+        {/* Credit Card Accounts */}
+        {creditCardAccounts.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <h2 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, padding: '0 0.25rem' }}>
+              Tarjetas de Crédito
+            </h2>
+            {creditCardAccounts.map(cc => (
+              <CreditCardCard
+                key={cc.id}
+                account={cc}
+                budgetId={budgetId}
+                accounts={accounts}
+                status={ccStatuses[cc.id] ?? null}
+              />
+            ))}
+          </div>
+        )}
       </aside>
 
       {/* Main Area */}

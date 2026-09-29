@@ -20,7 +20,8 @@ export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   budgetId: uuid("budget_id").references(() => budgets.id).notNull(),
   name: text("name").notNull(),
-  type: text("type").notNull(), // 'checking', 'savings', 'credit', 'cash'
+  // type: 'checking' | 'savings' | 'credit_card' | 'cash' | 'loan' (FR-CC-001, ADR-G17)
+  type: text("type").notNull(),
   isOffBudget: integer("is_off_budget").notNull().default(0), // 0 or 1
   currency: char("currency", { length: 3 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -85,6 +86,11 @@ export const categories = pgTable("categories", {
   sortOrder: integer("sort_order").notNull().default(0),
   isHidden: integer("is_hidden").notNull().default(0),
   icon: text("icon"), // emoji or icon name
+  // BR-CC-001: explicit link — credit card account ID → payment category
+  // NEVER identify payment category by name.
+  linkedAccountId: uuid("linked_account_id").references(() => accounts.id),
+  // System flag: payment categories are auto-managed, users can't assign them directly
+  isCreditCardPayment: integer("is_credit_card_payment").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
