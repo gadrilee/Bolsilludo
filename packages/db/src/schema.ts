@@ -46,6 +46,9 @@ export const transactions = pgTable("transactions", {
   payeeId: uuid("payee_id").references(() => payees.id),
   payeeName: text("payee_name"), // Optional fallback
   memo: text("memo"),
+  externalId: text("external_id"), // Added for imports matching
+  scheduledId: uuid("scheduled_id"),
+  occurrenceDate: date("occurrence_date"),
   status: text("status").notNull().default("cleared"), // 'pending', 'cleared', 'reconciled'
   voidedAt: timestamp("voided_at", { withTimezone: true }), // P3 Immutable History
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -123,4 +126,84 @@ export const goals = pgTable("goals", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   version: integer("version").notNull().default(1),
+});
+
+// 9. Import Batches
+export const importBatches = pgTable("import_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }).notNull(),
+  accountId: uuid("account_id").references(() => accounts.id).notNull(),
+  sourceType: text("source_type").notNull(), // 'CSV','OFX','QFX','YNAB_CSV','BANK_SYNC','MANUAL'
+  filename: text("filename"),
+  checksum: text("checksum"),
+  status: text("status").notNull(), // 'PENDING','PARSED','REVIEW','APPLIED','FAILED','CANCELLED'
+  totalRows: integer("total_rows").notNull().default(0),
+  acceptedRows: integer("accepted_rows").notNull().default(0),
+  duplicateRows: integer("duplicate_rows").notNull().default(0),
+  rejectedRows: integer("rejected_rows").notNull().default(0),
+  retryCount: integer("retry_count").notNull().default(0),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  idempotencyKey: uuid("idempotency_key").notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+// 10. Scheduled Transactions
+export const scheduledTransactions = pgTable("scheduled_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }).notNull(),
+  accountId: uuid("account_id").references(() => accounts.id).notNull(),
+  payeeId: uuid("payee_id").references(() => payees.id),
+  categoryId: uuid("category_id").references(() => categories.id),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: char("currency", { length: 3 }).notNull().default('BOB'),
+  memo: text("memo").notNull().default(''),
+  frequencyType: text("frequency_type").notNull(), // 'ONCE','WEEKLY','BIWEEKLY','MONTHLY','YEARLY','CUSTOM'
+  frequencyRule: text("frequency_rule").notNull().default('{}'), // json representation
+  startAt: date("start_at").notNull(),
+  endAt: date("end_at"),
+  nextOccurrenceAt: date("next_occurrence_at"),
+  lastOccurrenceAt: date("last_occurrence_at"),
+  autoPost: boolean("auto_post").notNull().default(false),
+  status: text("status").notNull().default('ACTIVE'), // 'ACTIVE','PAUSED','ENDED'
+  reimbursementGroupId: uuid("reimbursement_group_id"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  version: integer("version").notNull().default(1),
+});
+
+// 9.1 Import Rows (Staging)
+export const importRows = pgTable("import_rows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").references(() => importBatches.id, { onDelete: "cascade" }).notNull(),
+  budgetId: uuid("budget_id").notNull(),
+  rowIndex: integer("row_index").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  externalId: text("external_id"),
+  merchantName: text("merchant_name"),
+  rawDescription: text("raw_description"),
+  normalizedPayee: text("normalized_payee"),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: char("currency", { length: 3 }).notNull(),
+  authorizedDate: date("authorized_date"),
+  postedDate: date("posted_date"),
+  pending: boolean("pending").notNull().default(false),
+  decision: text("decision").notNull().default('NEW'), // 'NEW','MATCHED','REJECTED','DUPLICATE'
+  matchedTransactionId: uuid("matched_transaction_id"), // References transactions (but not strict FK as transaction might not exist yet or we just store UUID)
+  matchScore: integer("match_score"), // multiplied by 1000 for numeric(4,3) simulation or just decimal. Let's use real or text if we want exactly numeric. Let's use integer to store score out of 1000. 1000 = 1.000
+  suggestedCategoryId: uuid("suggested_category_id"),
+});
+
+// 9.2 Raw Bank Payloads
+export const rawBankPayloads = pgTable("raw_bank_payloads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").notNull(),
+  provider: text("provider").notNull(),
+  connectionId: uuid("connection_id"),
+  payload: text("payload").notNull(), // storing json as text in drizzle, or we can import jsonb if needed (let's use text and JSON.parse)
+  receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  retentionUntil: timestamp("retention_until", { withTimezone: true }),
 });

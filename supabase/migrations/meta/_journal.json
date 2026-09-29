@@ -29,6 +29,20 @@
       "when": 1790681426651,
       "tag": "0003_flaky_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790683338006,
+      "tag": "0004_thin_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790690712553,
+      "tag": "0005_fuzzy_warlock",
+      "breakpoints": true
     }
   ]
 }
