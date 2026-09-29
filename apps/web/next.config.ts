@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Enable CSS in layouts for design token import
   },
+  
+  transpilePackages: ['@bolsilludo/budget-engine', '@bolsilludo/db', '@bolsilludo/money'],
 
   // PWA headers — service worker + manifest
   async headers() {

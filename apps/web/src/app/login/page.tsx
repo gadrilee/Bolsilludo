@@ -41,9 +41,14 @@ export default function LoginPage() {
           </div>
 
           <div className="field-group">
-            <label htmlFor="password" className="field-label">
-              Contraseña
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label htmlFor="password" className="field-label" style={{ margin: 0 }}>
+                Contraseña
+              </label>
+              <Link href="/forgot-password" className="auth-link" style={{ fontSize: '0.8rem' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
             <input
               id="password"
               name="password"
@@ -51,7 +56,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
               className="field-input"
-              placeholder="••••••••"
+              placeholder="Tu contraseña"
             />
           </div>
 
