@@ -11,6 +11,7 @@ import { calculateMonthState } from '@bolsilludo/budget-engine';
 import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 import { getPendingImportBatch } from '../actions/imports';
 import { getScheduledTransactions } from '../actions/scheduled';
+import { getMembers, getInvitations } from '../actions/collaboration';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -33,18 +34,24 @@ export default async function DashboardPage() {
   let ccStatuses: Record<string, CreditCardStatusDTO> = {};
   let pendingBatches: Record<string, any> = {};
   let scheduled: Awaited<ReturnType<typeof getScheduledTransactions>> = [];
+  let members: any[] = [];
+  let invitations: any[] = [];
   const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
   if (activeBudget) {
     const { getGoals } = await import('../actions/goals');
     
-    [groups, accounts, transactions, goals, scheduled] = await Promise.all([
+    [groups, accounts, transactions, goals, scheduled, members] = await Promise.all([
       getCategories(activeBudget.id),
       getAccounts(activeBudget.id),
       getTransactions(activeBudget.id),
       getGoals(activeBudget.id),
       getScheduledTransactions(activeBudget.id),
+      getMembers(activeBudget.id).catch(() => []), // Viewer or higher
     ]);
+
+    // Admin or higher can fetch invitations, catch and default to empty array if user is viewer
+    invitations = await getInvitations(activeBudget.id).catch(() => []);
 
     const allocations = await getAllocationsForMonth(activeBudget.id, currentMonth);
 
@@ -167,6 +174,8 @@ export default async function DashboardPage() {
           ccStatuses={ccStatuses}
           pendingBatches={pendingBatches}
           scheduledTransactions={scheduled}
+          members={members}
+          invitations={invitations}
           userId={user.id}
         />
       )}

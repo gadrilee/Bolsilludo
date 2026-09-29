@@ -76,9 +76,65 @@ async function run() {
     ALTER TABLE "import_rows" ADD CONSTRAINT "import_rows_batch_id_import_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."import_batches"("id") ON DELETE cascade ON UPDATE no action
   `.catch(e => console.log('Constraint may already exist:', e.message));
 
-  // The drop column is done implicitly or we ignore for now, we already dealt with opening_balance from the codebase.
-  
-  console.log('Migration 0004 applied successfully');
+  // 0005
+  await sql`
+    CREATE TABLE IF NOT EXISTS "scheduled_transactions" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "budget_id" uuid NOT NULL,
+      "account_id" uuid NOT NULL,
+      "payee_id" uuid,
+      "category_id" uuid,
+      "amount_minor" bigint NOT NULL,
+      "currency" char(3) DEFAULT 'BOB' NOT NULL,
+      "memo" text DEFAULT '' NOT NULL,
+      "frequency_type" text NOT NULL,
+      "frequency_rule" text DEFAULT '{}' NOT NULL,
+      "start_at" date NOT NULL,
+      "end_at" date,
+      "next_occurrence_at" date,
+      "last_occurrence_at" date,
+      "auto_post" boolean DEFAULT false NOT NULL,
+      "status" text DEFAULT 'ACTIVE' NOT NULL,
+      "reimbursement_group_id" uuid,
+      "archived_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "version" integer DEFAULT 1 NOT NULL
+    );
+  `;
+  await sql`ALTER TABLE "transactions" ADD COLUMN IF NOT EXISTS "scheduled_id" uuid`.catch(() => {});
+  await sql`ALTER TABLE "transactions" ADD COLUMN IF NOT EXISTS "occurrence_date" date`.catch(() => {});
+
+  // 0006
+  await sql`
+    CREATE TABLE IF NOT EXISTS "audit_events" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "budget_id" uuid NOT NULL,
+      "actor_user_id" uuid,
+      "entity_type" text NOT NULL,
+      "entity_id" uuid,
+      "action" text NOT NULL,
+      "details" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "budget_invitations" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "budget_id" uuid NOT NULL,
+      "email" text NOT NULL,
+      "role" text NOT NULL,
+      "token_hash" text NOT NULL UNIQUE,
+      "invited_by" uuid NOT NULL,
+      "invited_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "expires_at" timestamp with time zone NOT NULL,
+      "accepted_at" timestamp with time zone,
+      "revoked_at" timestamp with time zone
+    );
+  `;
+
+  console.log('Migrations 0004, 0005, 0006 applied successfully');
   process.exit(0);
 }
 

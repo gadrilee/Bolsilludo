@@ -207,3 +207,30 @@ export const rawBankPayloads = pgTable("raw_bank_payloads", {
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
   retentionUntil: timestamp("retention_until", { withTimezone: true }),
 });
+
+// 12.1 Budget Invitations
+export const budgetInvitations = pgTable("budget_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }).notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull(), // 'admin', 'editor', 'viewer'
+  tokenHash: text("token_hash").notNull().unique(),
+  invitedBy: uuid("invited_by").notNull(),
+  invitedAt: timestamp("invited_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+// 12.2 Audit Events (Optional for MVP, but good for feed)
+export const auditEvents = pgTable("audit_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }).notNull(),
+  actorUserId: uuid("actor_user_id"),
+  entityType: text("entity_type").notNull(), // e.g., 'transaction', 'member', 'budget'
+  entityId: uuid("entity_id"),
+  action: text("action").notNull(), // e.g., 'created', 'updated', 'deleted', 'invited'
+  details: text("details"), // JSON payload as text
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
