@@ -9,6 +9,8 @@ import { CreateBudgetForm } from './create-budget-form';
 import { BudgetView } from './budget-view';
 import { calculateMonthState } from '@bolsilludo/budget-engine';
 import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
+import { getPendingImportBatch } from '../actions/imports';
+import { getScheduledTransactions } from '../actions/scheduled';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -29,16 +31,19 @@ export default async function DashboardPage() {
   let goals: any[] = [];
   let monthState: ReturnType<typeof calculateMonthState> | null = null;
   let ccStatuses: Record<string, CreditCardStatusDTO> = {};
+  let pendingBatches: Record<string, any> = {};
+  let scheduled: Awaited<ReturnType<typeof getScheduledTransactions>> = [];
   const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
   if (activeBudget) {
     const { getGoals } = await import('../actions/goals');
     
-    [groups, accounts, transactions, goals] = await Promise.all([
+    [groups, accounts, transactions, goals, scheduled] = await Promise.all([
       getCategories(activeBudget.id),
       getAccounts(activeBudget.id),
       getTransactions(activeBudget.id),
       getGoals(activeBudget.id),
+      getScheduledTransactions(activeBudget.id),
     ]);
 
     const allocations = await getAllocationsForMonth(activeBudget.id, currentMonth);
@@ -87,6 +92,14 @@ export default async function DashboardPage() {
     );
     ccStatuses = Object.fromEntries(
       cardAccounts.map((a, i) => [a.id, ccStatusResults[i]]).filter(([, v]) => v !== null) as [string, CreditCardStatusDTO][]
+    );
+
+    // Fetch pending import batches for all accounts
+    const batchesResults = await Promise.all(
+      accounts.map(a => getPendingImportBatch(a.id))
+    );
+    pendingBatches = Object.fromEntries(
+      accounts.map((a, i) => [a.id, batchesResults[i]]).filter(([, v]) => v !== null)
     );
   }
 
@@ -152,6 +165,9 @@ export default async function DashboardPage() {
           monthState={monthState}
           currentMonth={currentMonth}
           ccStatuses={ccStatuses}
+          pendingBatches={pendingBatches}
+          scheduledTransactions={scheduled}
+          userId={user.id}
         />
       )}
     </main>

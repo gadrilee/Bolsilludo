@@ -7,6 +7,7 @@ import { CreateAccountForm } from './create-account-form';
 import { LedgerView } from './ledger-view';
 import { GoalSheet } from './goal-sheet';
 import { CreditCardCard } from './credit-card-card';
+import { ReportsView } from './reports-view';
 import type { CreditCardStatusDTO } from '@bolsilludo/budget-engine';
 
 type Category = { id: string; name: string; groupId: string; sortOrder: number; isHidden: number; icon: string | null; createdAt: Date };
@@ -23,14 +24,17 @@ type BudgetViewProps = {
   monthState?: MonthState | null;
   currentMonth?: string;
   ccStatuses?: Record<string, CreditCardStatusDTO>;
+  pendingBatches?: Record<string, any>;
+  scheduledTransactions?: any[];
+  userId?: string;
 };
 
-export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth, ccStatuses = {} }: BudgetViewProps) {
+export function BudgetView({ budgetId, budgetName, groups, accounts, transactions, monthState, currentMonth, ccStatuses = {}, pendingBatches = {}, scheduledTransactions = [], userId = '' }: BudgetViewProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [addingCategoryToGroup, setAddingCategoryToGroup] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAccountModal, setShowAccountModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'budget' | 'ledger'>('budget');
+  const [activeTab, setActiveTab] = useState<'budget' | 'ledger' | 'reports'>('budget');
   const [selectedCategoryGoal, setSelectedCategoryGoal] = useState<{ id: string, name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -142,7 +146,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
 
         {/* Tabs */}
         <nav style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
-          {(['budget', 'ledger'] as const).map(tab => (
+          {(['budget', 'ledger', 'reports'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -158,7 +162,7 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
                 transition: 'all 0.15s ease',
               }}
             >
-              {tab === 'budget' ? '📊 Presupuesto' : '📋 Transacciones'}
+              {tab === 'budget' ? '📊 Presupuesto' : tab === 'ledger' ? '📋 Transacciones' : '📈 Reportes'}
             </button>
           ))}
         </nav>
@@ -345,8 +349,18 @@ export function BudgetView({ budgetId, budgetName, groups, accounts, transaction
               )}
             </div>
           </>
+        ) : activeTab === 'ledger' ? (
+          <LedgerView 
+            budgetId={budgetId} 
+            accounts={accounts} 
+            transactions={transactions} 
+            groups={groups} 
+            pendingBatches={pendingBatches}
+            scheduledTransactions={scheduledTransactions}
+            userId={userId}
+          />
         ) : (
-          <LedgerView budgetId={budgetId} accounts={accounts} transactions={transactions} groups={groups} />
+          <ReportsView budgetId={budgetId} />
         )}
       </div>
 
